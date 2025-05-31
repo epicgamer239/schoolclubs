@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { auth, firestore } from "@/firebase";
+import { useRouter, useSearchParams } from "next/navigation";
+import { auth, firestore } from "../../../firebase";
 import {
   doc,
   getDoc,
@@ -19,7 +19,10 @@ export default function StudentDashboard() {
   const [user, setUser] = useState(null);
   const [clubs, setClubs] = useState([]);
   const [allClubs, setAllClubs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const viewAsStudent = searchParams.get("view") === "student";
 
   useEffect(() => {
     const fetchStudentData = async () => {
@@ -29,7 +32,9 @@ export default function StudentDashboard() {
       const userDoc = await getDoc(doc(firestore, "users", currentUser.uid));
       const userData = userDoc.data();
 
-      if (userData?.role !== "student") return router.push("/");
+      if (!viewAsStudent && userData?.role !== "student") {
+        return router.push("/");
+      }
 
       const userClubIds = userData.clubIds || [];
 
@@ -50,10 +55,11 @@ export default function StudentDashboard() {
 
       setClubs(joined);
       setAllClubs(available);
+      setLoading(false);
     };
 
     fetchStudentData();
-  }, [router]);
+  }, [router, viewAsStudent]);
 
   const handleLeave = async (clubId) => {
     if (!confirm("Are you sure you want to leave this club?")) return;
@@ -86,6 +92,8 @@ export default function StudentDashboard() {
     setAllClubs((prev) => prev.filter((c) => c.id !== clubId));
   };
 
+  if (loading) return <div className="p-6 text-white">Loading...</div>;
+
   return (
     <div className="min-h-screen bg-[#0D1B2A] text-white p-6">
       <DashboardTopBar title="Student Dashboard" />
@@ -102,12 +110,14 @@ export default function StudentDashboard() {
               {club.leaderId === user.uid && (
                 <p className="text-green-400 mt-1 text-sm">🌟 You are the leader</p>
               )}
-              <button
-                onClick={() => handleLeave(club.id)}
-                className="mt-3 bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm text-white"
-              >
-                Leave Club
-              </button>
+              {!viewAsStudent && (
+                <button
+                  onClick={() => handleLeave(club.id)}
+                  className="mt-3 bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm text-white"
+                >
+                  Leave Club
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -122,12 +132,14 @@ export default function StudentDashboard() {
             <div key={club.id} className="bg-white/10 p-4 rounded-xl shadow">
               <h3 className="text-lg font-bold mb-1">{club.name}</h3>
               <p className="text-sm text-gray-300">{club.description}</p>
-              <button
-                onClick={() => handleJoin(club.id)}
-                className="mt-3 bg-teal-500 hover:bg-teal-600 px-3 py-1 rounded text-sm text-white"
-              >
-                Join Club
-              </button>
+              {!viewAsStudent && (
+                <button
+                  onClick={() => handleJoin(club.id)}
+                  className="mt-3 bg-teal-500 hover:bg-teal-600 px-3 py-1 rounded text-sm text-white"
+                >
+                  Join Club
+                </button>
+              )}
             </div>
           ))}
         </div>
