@@ -134,12 +134,11 @@ export default function AdminDashboard() {
             </button>
 
             <button
-  onClick={() => router.push("/student/dashboard?view=student")}
-  className="bg-white text-[#0D1B2A] hover:bg-gray-200 px-4 py-2 rounded font-semibold"
->
-  👀 View as Student
-</button>
-
+              onClick={() => router.push("/student/clubs")}
+              className="bg-white text-[#0D1B2A] hover:bg-gray-200 px-4 py-2 rounded font-semibold"
+            >
+              👀 View as Student
+            </button>
           </div>
         </>
       )}
