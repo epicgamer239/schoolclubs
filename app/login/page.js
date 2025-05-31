@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
-import { auth, provider, firestore } from "../../firebase";
+import { auth, provider, firestore } from "@firebase";
 import { doc, getDoc } from "firebase/firestore";
 
 export default function LoginPage() {

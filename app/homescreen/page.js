@@ -1,7 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "../../firebase";
+import { auth } from "@firebase";
 import { signOut } from "firebase/auth";
 
 export default function Dashboard() {

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { firestore } from "../../../firebase";
+import { firestore } from "@firebase";
 import {
   collection,
   query,
@@ -10,7 +10,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
-import { auth } from "../../../firebase";
+import { auth } from "@firebase";
 
 export default function JoinSchoolPage() {
   const [joinCode, setJoinCode] = useState("");
