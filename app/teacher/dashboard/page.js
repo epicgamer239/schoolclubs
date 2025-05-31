@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@firebase";
+import { auth } from "@/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { firestore } from "@firebase";
+import { firestore } from "@/firebase";
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
