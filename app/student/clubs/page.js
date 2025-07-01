@@ -1,9 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { auth, firestore } from "@/firebase";
+import { firestore } from "@/firebase";
 import {
   doc,
-  getDoc,
   collection,
   query,
   where,
@@ -12,29 +11,22 @@ import {
   arrayUnion,
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import ProtectedRoute from "../../../components/ProtectedRoute";
+import { useAuth } from "../../../components/AuthContext";
+import DashboardTopBar from "../../../components/DashboardTopBar";
 
 export default function StudentClubList() {
   const [clubs, setClubs] = useState([]);
-  const [schoolId, setSchoolId] = useState(null);
-  const [studentId, setStudentId] = useState(null);
   const [joinedClubIds, setJoinedClubIds] = useState([]);
   const router = useRouter();
+  const { userData, loading } = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
-      const user = auth.currentUser;
-      if (!user) return router.push("/login");
+      if (!userData?.schoolId) return;
 
-      const userDoc = await getDoc(doc(firestore, "users", user.uid));
-      const userData = userDoc.data();
-
-      if (userData.role !== "student") return router.push("/homescreen");
-
-      setStudentId(user.uid);
       setJoinedClubIds(userData.clubIds || []);
-      setSchoolId(userData.schoolId);
 
-      if (userData.schoolId) {
         const q = query(collection(firestore, "clubs"), where("schoolId", "==", userData.schoolId));
         const querySnapshot = await getDocs(q);
         const clubList = querySnapshot.docs.map((doc) => ({
@@ -42,25 +34,29 @@ export default function StudentClubList() {
           ...doc.data(),
         }));
         setClubs(clubList);
-      }
     };
 
+    if (!loading && userData) {
     fetchData();
-  }, []);
+    }
+  }, [userData, loading]);
 
   const handleJoin = async (clubId) => {
-    if (!studentId) return;
-    await updateDoc(doc(firestore, "users", studentId), {
+    if (!userData?.uid) return;
+    
+    await updateDoc(doc(firestore, "users", userData.uid), {
       clubIds: arrayUnion(clubId),
     });
     await updateDoc(doc(firestore, "clubs", clubId), {
-      studentIds: arrayUnion(studentId),
+      studentIds: arrayUnion(userData.uid),
     });
     setJoinedClubIds((prev) => [...prev, clubId]);
   };
 
   return (
+    <ProtectedRoute requiredRole="student">
     <div className="min-h-screen bg-[#0D1B2A] text-white p-6">
+        <DashboardTopBar title="Student Dashboard" />
       <h1 className="text-3xl font-bold mb-6">🎓 Explore Clubs</h1>
 
       {clubs.length === 0 ? (
@@ -88,5 +84,6 @@ export default function StudentClubList() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }

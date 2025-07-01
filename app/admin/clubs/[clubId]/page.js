@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { auth, firestore } from "@/firebase";
+import { firestore } from "@/firebase";
 import {
   doc,
   getDoc,
@@ -13,22 +13,20 @@ import {
   arrayRemove,
   arrayUnion,
 } from "firebase/firestore";
+import ProtectedRoute from "../../../../components/ProtectedRoute";
+import { useAuth } from "../../../../components/AuthContext";
+import DashboardTopBar from "../../../../components/DashboardTopBar";
 
 export default function ClubMembersPage() {
   const { clubId } = useParams();
   const router = useRouter();
   const [club, setClub] = useState(null);
   const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { userData, loading } = useAuth();
 
   useEffect(() => {
     const fetchClubAndMembers = async () => {
-      const user = auth.currentUser;
-      if (!user) return router.push("/login");
-
-      const userDoc = await getDoc(doc(firestore, "users", user.uid));
-      const userData = userDoc.data();
-      if (userData.role !== "admin") return router.push("/");
+      if (!userData || !clubId) return;
 
       const clubDoc = await getDoc(doc(firestore, "clubs", clubId));
       const clubData = clubDoc.data();
@@ -48,11 +46,12 @@ export default function ClubMembersPage() {
       }));
 
       setStudents(studentList);
-      setLoading(false);
     };
 
+    if (!loading && userData) {
     fetchClubAndMembers();
-  }, [clubId]);
+    }
+  }, [clubId, userData, loading]);
 
   const handleRemove = async (studentId) => {
     if (!confirm("Remove this student from the club?")) return;
@@ -75,12 +74,12 @@ export default function ClubMembersPage() {
     setClub((prev) => ({ ...prev, leaderId: studentId }));
   };
 
-  if (loading) return <div className="p-6 text-white">Loading...</div>;
-
   return (
+    <ProtectedRoute requiredRole="admin">
     <div className="min-h-screen bg-[#0D1B2A] text-white p-6">
+        <DashboardTopBar title="Admin Dashboard" />
       <h1 className="text-3xl font-bold mb-4">👥 Club Members</h1>
-      <p className="text-lg mb-4">Club: <strong>{club.name}</strong></p>
+        {club && <p className="text-lg mb-4">Club: <strong>{club.name}</strong></p>}
 
       {students.length === 0 ? (
         <p>No students in this club yet.</p>
@@ -94,12 +93,12 @@ export default function ClubMembersPage() {
               <div>
                 <p className="font-semibold">{student.displayName || student.email}</p>
                 <p className="text-xs text-gray-300">{student.email}</p>
-                {club.leaderId === student.uid && (
+                  {club?.leaderId === student.uid && (
                   <p className="text-green-400 text-sm mt-1">🌟 Leader</p>
                 )}
               </div>
               <div className="flex gap-2">
-                {club.leaderId !== student.uid && (
+                  {club?.leaderId !== student.uid && (
                   <button
                     onClick={() => handlePromote(student.uid)}
                     className="bg-yellow-500 hover:bg-yellow-600 px-3 py-1 rounded text-white text-sm"
@@ -125,5 +124,6 @@ export default function ClubMembersPage() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }

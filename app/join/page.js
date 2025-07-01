@@ -50,27 +50,27 @@ export default function JoinSchoolPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <form
         onSubmit={handleJoin}
-        className="bg-white p-6 rounded shadow w-full max-w-md"
+        className="card p-8 shadow-2xl border border-border/50 w-full max-w-md"
       >
-        <h1 className="text-xl font-bold mb-4">Join a School</h1>
+        <h1 className="text-2xl font-bold mb-6 text-foreground text-center">🏫 Join a School</h1>
 
         <input
           type="text"
           placeholder="Enter Join Code"
           value={joinCode}
           onChange={(e) => setJoinCode(e.target.value)}
-          className="w-full p-3 border rounded mb-4 uppercase"
+          className="input uppercase mb-6"
           required
         />
 
-        {error && <p className="text-red-500 mb-4">{error}</p>}
+        {error && <p className="text-destructive mb-6 text-center font-medium">{error}</p>}
 
         <button
           type="submit"
-          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
+          className="w-full btn-primary py-3"
         >
           Join School
         </button>

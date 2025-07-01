@@ -1,37 +1,26 @@
 "use client";
 import { useEffect, useState } from "react";
-import { auth, firestore } from "@/firebase";
-import { doc, getDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { firestore } from "@/firebase";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import ProtectedRoute from "../../../components/ProtectedRoute";
+import { useAuth } from "../../../components/AuthContext";
+import DashboardTopBar from "../../../components/DashboardTopBar";
 
 export default function CreateClubPage() {
   const [clubName, setClubName] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
-  const [schoolId, setSchoolId] = useState(null);
   const router = useRouter();
+  const { userData, loading } = useAuth();
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      const user = auth.currentUser;
-      if (!user) return router.push("/login");
-
-      const userDoc = await getDoc(doc(firestore, "users", user.uid));
-      const data = userDoc.data();
-
-      if (!data || !["teacher", "admin"].includes(data.role)) {
-        return router.push("/login");
-      }
-
-      if (!data.schoolId) {
+    if (!loading && userData) {
+      if (!userData.schoolId) {
         setError("You must be joined to a school to create a club.");
-      } else {
-        setSchoolId(data.schoolId);
       }
-    };
-
-    fetchUserData();
-  }, []);
+    }
+  }, [userData, loading]);
 
   const handleCreate = async () => {
     setError("");
@@ -41,14 +30,17 @@ export default function CreateClubPage() {
       return;
     }
 
-    try {
-      const user = auth.currentUser;
+    if (!userData?.schoolId) {
+      setError("You must be joined to a school to create a club.");
+      return;
+    }
 
+    try {
       await addDoc(collection(firestore, "clubs"), {
         name: clubName.trim(),
         description: description.trim(),
-        schoolId,
-        teacherId: user.uid,
+        schoolId: userData.schoolId,
+        teacherId: userData.uid,
         studentIds: [],
         createdAt: serverTimestamp(),
       });
@@ -62,32 +54,75 @@ export default function CreateClubPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0D1B2A] text-white p-8">
-      <h1 className="text-3xl font-bold mb-6">📘 Create a Club</h1>
-
-      {error && <p className="text-red-400 mb-4">{error}</p>}
-
-      <div className="max-w-lg bg-white/5 p-6 rounded-xl space-y-4">
-        <input
-          type="text"
-          placeholder="Club Name"
-          className="w-full p-3 rounded text-black"
-          value={clubName}
-          onChange={(e) => setClubName(e.target.value)}
-        />
-        <textarea
-          placeholder="Club Description"
-          className="w-full p-3 rounded text-black h-32"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
+    <ProtectedRoute requiredRole="teacher">
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
+        <DashboardTopBar title="Teacher Dashboard" />
+        
+        {/* Back Button */}
         <button
-          onClick={handleCreate}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded"
+          onClick={() => router.push("/teacher/dashboard")}
+          className="mb-6 bg-secondary hover:bg-secondary/80 px-4 py-2 rounded-lg text-white font-semibold flex items-center gap-2 transition-colors"
         >
-          Create Club
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Dashboard
         </button>
+        
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-3xl font-bold mb-8">➕ Create a Club</h1>
+
+          {error && (
+            <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl">
+              <p className="text-destructive font-medium">{error}</p>
+            </div>
+          )}
+
+          <div className="card p-8 space-y-6">
+            <div>
+              <label htmlFor="clubName" className="block text-sm font-semibold mb-3 text-foreground">
+                Club Name
+              </label>
+              <input
+                id="clubName"
+                type="text"
+                placeholder="Enter club name"
+                className="input"
+                value={clubName}
+                onChange={(e) => setClubName(e.target.value)}
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="description" className="block text-sm font-semibold mb-3 text-foreground">
+                Description
+              </label>
+              <textarea
+                id="description"
+                placeholder="Describe the club's purpose and activities"
+                className="input min-h-[120px] resize-none"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <button
+                onClick={handleCreate}
+                className="flex-1 btn-primary"
+              >
+                Create Club
+              </button>
+              <button
+                onClick={() => router.push("/teacher/dashboard")}
+                className="btn-outline"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </ProtectedRoute>
   );
 }

@@ -1,145 +1,187 @@
-// File: app/page.js
-
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#0D1B2A] via-[#1e2746] to-[#111b32] text-white flex flex-col">
-      {/* ──── NAVBAR ────────────────────────────────────────────────────────────── */}
-      <header className="w-full py-6 px-8 flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight">StudyHub</h1>
-        <nav className="space-x-4">
-          <Link
-            href="/login"
-            className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition font-medium"
-          >
-            Log In
+    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted flex flex-col">
+      {/* Header */}
+      <header className="w-full py-6 px-6 border-b border-border/50 backdrop-blur-sm bg-background/80 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <Link href="/" className="flex items-center space-x-3 hover:opacity-80 group">
+            <div className="relative">
+              <Image
+                src="/logo.png"
+                alt="StudyHub Logo"
+                width={40}
+                height={40}
+                className="w-10 h-10 group-hover:scale-110"
+              />
+            </div>
+            <span className="text-2xl font-bold text-primary">
+              StudyHub
+            </span>
           </Link>
-          <Link
-            href="/signup"
-            className="px-4 py-2 bg-teal-500 hover:bg-teal-600 rounded-lg transition font-medium"
-          >
-            Sign Up
-          </Link>
-        </nav>
+
+          <nav className="flex items-center space-x-6">
+            <Link
+              href="/login"
+              className="text-muted-foreground hover:text-foreground font-medium"
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/signup"
+              className="btn-primary"
+            >
+              Get Started
+            </Link>
+          </nav>
+        </div>
       </header>
 
-      {/* ──── HERO SECTION ──────────────────────────────────────────────────────── */}
-      <section className="flex-1 flex flex-col justify-center items-center text-center px-6">
-        <h2 className="text-5xl md:text-6xl font-extrabold mb-4 leading-tight">
-          Empower Your School’s <br />
-          <span className="text-teal-400">Clubs & Communities</span>
-        </h2>
-        <p className="max-w-2xl text-gray-300 mb-8 text-lg">
-          Join, create, and manage clubs seamlessly. Whether you’re a student, teacher, or admin,
-          StudyHub provides a one-stop platform to connect, collaborate, and thrive together.
-        </p>
-        <div className="flex space-x-4">
-          <Link
-            href="/signup"
-            className="px-6 py-3 bg-teal-500 hover:bg-teal-600 rounded-lg text-white font-semibold transition"
-          >
-            Get Started
-          </Link>
-          <Link
-            href="/student/clubs"
-            className="px-6 py-3 bg-white/20 hover:bg-white/30 rounded-lg text-white font-semibold transition"
-          >
-            Explore Clubs
-          </Link>
+      {/* Hero Section */}
+      <section className="flex flex-col lg:flex-row items-center justify-between px-6 py-20 max-w-7xl mx-auto gap-16">
+        <div className="lg:w-1/2 text-center lg:text-left">
+          <div className="mb-6">
+            <span className="inline-block bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-semibold mb-4">
+              🎓 Trusted by 500+ Schools
+            </span>
+          </div>
+          <h1 className="text-5xl lg:text-6xl font-bold mb-8 leading-tight">
+            Streamline Your School's
+            <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent block">
+              Club Management
+            </span>
+          </h1>
+          <p className="text-xl text-muted-foreground mb-10 leading-relaxed">
+            A comprehensive platform for students, teachers, and administrators to create, 
+            manage, and participate in school clubs and organizations with ease.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+            <Link
+              href="/signup"
+              className="btn-primary text-lg px-8 py-4"
+            >
+              Start Free Trial
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </Link>
+            <Link
+              href="/student/clubs"
+              className="btn-outline text-lg px-8 py-4"
+            >
+              View Demo
+            </Link>
+          </div>
         </div>
-      </section>
 
-      {/* ──── FEATURES SECTION ──────────────────────────────────────────────────── */}
-      <section className="py-16 px-6">
-        <h3 className="text-3xl font-bold text-center mb-12">Platform Highlights</h3>
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {/* Feature Card 1 */}
-          <div className="bg-white/10 backdrop-blur-sm p-6 rounded-2xl shadow-lg flex flex-col items-center text-center">
-            <div className="bg-teal-500 p-4 rounded-full mb-4">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-8 w-8 text-white"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M12 2a9.93 9.93 0 00-7.07 2.93A10 10 0 1012 2zm0 18a8 8 0 118-8 8.009 8.009 0 01-8 8z" />
-                <path d="M12 6a6 6 0 100 12 6 6 0 000-12zm0 10a4 4 0 114-4 4.005 4.005 0 01-4 4z" />
-              </svg>
+        <div className="lg:w-1/2">
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-2xl blur-3xl"></div>
+            <div className="relative card rounded-2xl p-8 border border-border/50 shadow-2xl">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-background p-6 rounded-xl border border-border/50 hover:border-primary/30 group">
+                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary/20">
+                    <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold mb-2 text-lg">Student Clubs</h3>
+                  <p className="text-sm text-muted-foreground">Join and participate in exciting activities</p>
+                </div>
+                <div className="bg-background p-6 rounded-xl border border-border/50 hover:border-secondary/30 group">
+                  <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center mb-4 group-hover:bg-secondary/20">
+                    <svg className="w-6 h-6 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold mb-2 text-lg">Teacher Tools</h3>
+                  <p className="text-sm text-muted-foreground">Manage and organize club activities</p>
+                </div>
+                <div className="bg-background p-6 rounded-xl border border-border/50 hover:border-accent-foreground/30 group">
+                  <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center mb-4 group-hover:bg-accent/80">
+                    <svg className="w-6 h-6 text-accent-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold mb-2 text-lg">Admin Dashboard</h3>
+                  <p className="text-sm text-muted-foreground">Oversight and control management</p>
+                </div>
+                <div className="bg-background p-6 rounded-xl border border-border/50 hover:border-primary/30 group">
+                  <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary/30">
+                    <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold mb-2 text-lg">Analytics</h3>
+                  <p className="text-sm text-muted-foreground">Track engagement and growth</p>
+                </div>
+              </div>
             </div>
-            <h4 className="text-xl font-semibold mb-2">Centralized Club Management</h4>
-            <p className="text-gray-300">
-              Admins and teachers can create, edit, and organize clubs in one place—no more scattered spreadsheets.
-            </p>
-          </div>
-
-          {/* Feature Card 2 */}
-          <div className="bg-white/10 backdrop-blur-sm p-6 rounded-2xl shadow-lg flex flex-col items-center text-center">
-            <div className="bg-teal-500 p-4 rounded-full mb-4">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-8 w-8 text-white"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M12 7a5 5 0 105 5 5.006 5.006 0 00-5-5zm0 8a3 3 0 113-3 3.003 3.003 0 01-3 3z" />
-                <path d="M17 19a9 9 0 10-10 0v1h10z" />
-              </svg>
-            </div>
-            <h4 className="text-xl font-semibold mb-2">Seamless Member Collaboration</h4>
-            <p className="text-gray-300">
-              Students can browse, join, and leave clubs with a single click. Stay connected with your community.
-            </p>
-          </div>
-
-          {/* Feature Card 3 */}
-          <div className="bg-white/10 backdrop-blur-sm p-6 rounded-2xl shadow-lg flex flex-col items-center text-center">
-            <div className="bg-teal-500 p-4 rounded-full mb-4">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-8 w-8 text-white"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M19 3H5a2 2 0 00-2 2v14l4-4h12a2 2 0 002-2V5a2 2 0 00-2-2z" />
-                <path d="M7 9h10v2H7zm0 4h7v2H7z" />
-              </svg>
-            </div>
-            <h4 className="text-xl font-semibold mb-2">Instant Messaging & Updates</h4>
-            <p className="text-gray-300">
-              Club leaders can send announcements and messages to members—keep everyone on the same page.
-            </p>
           </div>
         </div>
       </section>
 
-      {/* ──── CALL-TO-ACTION BANNER ─────────────────────────────────────────────── */}
-      <section className="bg-white/10 backdrop-blur-sm py-16 px-6 text-center rounded-t-3xl">
-        <h3 className="text-3xl font-bold mb-4">Ready to Elevate Your School Experience?</h3>
-        <p className="text-gray-300 mb-6 max-w-2xl mx-auto">
-          Whether you’re leading a club or just looking to discover new groups, StudyHub has you covered. Join hundreds
-          of students and staff who are already enjoying seamless club management.
-        </p>
-        <Link
-          href="/signup"
-          className="px-8 py-4 bg-teal-500 hover:bg-teal-600 rounded-xl text-white font-semibold text-lg transition"
-        >
-          Get Started for Free
-        </Link>
+      {/* Features Section */}
+      <section className="bg-gradient-to-b from-muted/50 to-background py-20 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold mb-6">Built for Educational Institutions</h2>
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+              Trusted by schools nationwide to manage student organizations, 
+              track participation, and foster community engagement.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-12">
+            <div className="text-center group">
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20">
+                <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold mb-4">Role-Based Access</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Secure, role-specific interfaces for students, teachers, and administrators with granular permissions.
+              </p>
+            </div>
+            
+            <div className="text-center group">
+              <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-secondary/20">
+                <svg className="w-8 h-8 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold mb-4">Real-time Updates</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Instant notifications and live updates keep everyone informed about club activities and changes.
+              </p>
+            </div>
+            
+            <div className="text-center group">
+              <div className="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-accent/20">
+                <svg className="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold mb-4">Comprehensive Analytics</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Detailed insights into club participation, student engagement, and organizational growth.
+              </p>
+            </div>
+          </div>
+        </div>
       </section>
 
-      {/* ──── FOOTER ──────────────────────────────────────────────────────────────── */}
-      <footer className="bg-[#111b32] py-6 text-center text-gray-400">
-        <p>© {new Date().getFullYear()} StudyHub. All rights reserved.</p>
-        <div className="mt-2 space-x-4">
-          <Link href="/privacy" className="hover:text-white transition">
-            Privacy Policy
-          </Link>
-          <Link href="/terms" className="hover:text-white transition">
-            Terms of Service
-          </Link>
+      {/* Footer */}
+      <footer className="bg-background border-t border-border/50 py-12 px-6">
+        <div className="max-w-7xl mx-auto text-center">
+          <p className="text-muted-foreground">
+            © 2024 StudyHub. All rights reserved.
+          </p>
         </div>
       </footer>
     </main>
