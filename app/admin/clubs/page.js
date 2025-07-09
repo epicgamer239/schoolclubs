@@ -19,6 +19,7 @@ export default function AdminClubManager() {
   const [clubs, setClubs] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState("");
+  const [memberFilter, setMemberFilter] = useState("all");
   const [editingClubId, setEditingClubId] = useState(null);
   const router = useRouter();
   const { userData, loading } = useAuth();
@@ -62,9 +63,48 @@ export default function AdminClubManager() {
     );
   };
 
+  const applyFilters = (text, memberCountFilter) => {
+    let filteredClubs = clubs;
+
+    // Apply text search
+    if (text) {
+      filteredClubs = filteredClubs.filter((c) => 
+        c.name.toLowerCase().includes(text.toLowerCase())
+      );
+    }
+
+    // Apply member count filter
+    if (memberCountFilter !== "all") {
+      filteredClubs = filteredClubs.filter((club) => {
+        const memberCount = club.studentIds?.length || 0;
+        switch (memberCountFilter) {
+          case "0":
+            return memberCount === 0;
+          case "1-5":
+            return memberCount >= 1 && memberCount <= 5;
+          case "6-10":
+            return memberCount >= 6 && memberCount <= 10;
+          case "11-20":
+            return memberCount >= 11 && memberCount <= 20;
+          case "20+":
+            return memberCount > 20;
+          default:
+            return true;
+        }
+      });
+    }
+
+    setFiltered(filteredClubs);
+  };
+
   const handleSearch = (text) => {
     setSearch(text);
-    setFiltered(clubs.filter((c) => c.name.toLowerCase().includes(text.toLowerCase())));
+    applyFilters(text, memberFilter);
+  };
+
+  const handleMemberFilter = (filter) => {
+    setMemberFilter(filter);
+    applyFilters(search, filter);
   };
 
   return (
@@ -93,14 +133,59 @@ export default function AdminClubManager() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="mb-6">
-        <input
-          placeholder="Search clubs..."
-          value={search}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="input max-w-md"
-        />
+      {/* Search and Filters */}
+      <div className="mb-6 space-y-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <input
+              placeholder="Search clubs..."
+              value={search}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="input w-full"
+            />
+          </div>
+          <div className="md:w-64">
+            <select
+              value={memberFilter}
+              onChange={(e) => handleMemberFilter(e.target.value)}
+              className="input w-full"
+            >
+              <option value="all">All member counts</option>
+              <option value="0">0 members</option>
+              <option value="1-5">1-5 members</option>
+              <option value="6-10">6-10 members</option>
+              <option value="11-20">11-20 members</option>
+              <option value="20+">20+ members</option>
+            </select>
+          </div>
+        </div>
+        
+        {/* Filter Summary */}
+        {(search || memberFilter !== "all") && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Filtered results:</span>
+            {search && <span className="badge badge-primary">{search}</span>}
+            {memberFilter !== "all" && (
+              <span className="badge badge-secondary">
+                {memberFilter === "0" ? "0 members" : 
+                 memberFilter === "1-5" ? "1-5 members" :
+                 memberFilter === "6-10" ? "6-10 members" :
+                 memberFilter === "11-20" ? "11-20 members" :
+                 "20+ members"}
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setSearch("");
+                setMemberFilter("all");
+                setFiltered(clubs);
+              }}
+              className="text-primary hover:text-primary/80 font-medium"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Club List */}
@@ -110,9 +195,23 @@ export default function AdminClubManager() {
             <div className="text-6xl mb-4">📚</div>
             <h3 className="text-xl font-semibold mb-2">No Clubs Found</h3>
             <p className="text-muted-foreground mb-4">
-              {search ? `No clubs match "${search}"` : "No clubs have been created yet."}
+              {search || memberFilter !== "all" 
+                ? `No clubs match your current filters.` 
+                : "No clubs have been created yet."}
             </p>
-            {!search && (
+            {(search || memberFilter !== "all") && (
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setMemberFilter("all");
+                  setFiltered(clubs);
+                }}
+                className="btn-primary"
+              >
+                Clear Filters
+              </button>
+            )}
+            {!search && memberFilter === "all" && (
               <button
                 onClick={() => router.push("/admin/clubs/create")}
                 className="btn-primary"

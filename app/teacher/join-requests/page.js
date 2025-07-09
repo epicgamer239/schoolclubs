@@ -216,7 +216,8 @@ export default function JoinRequestsPage() {
                       <div className="flex items-center space-x-4 mb-4">
                         {request.student?.photoURL ? (
                           <Image
-                            src={request.student.photoURL}
+                                                              src={request.student.photoURL}
+                                  crossOrigin="anonymous"
                             alt="Student"
                             className="w-12 h-12 rounded-full border-2 border-border"
                             width={48}

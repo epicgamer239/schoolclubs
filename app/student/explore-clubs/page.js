@@ -461,6 +461,7 @@ export default function StudentExploreClubs() {
                                 {student.photoURL ? (
                                   <Image
                                     src={student.photoURL}
+                                    crossOrigin="anonymous"
                                     alt="Student"
                                     width={32}
                                     height={32}

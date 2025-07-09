@@ -169,6 +169,12 @@ export default function TeacherClubsPage() {
                   </div>
                   <div className="flex gap-3">
                     <button
+                      onClick={() => router.push(`/teacher/clubs/${club.id}`)}
+                      className="btn-primary"
+                    >
+                      👁️ View Club
+                    </button>
+                    <button
                       onClick={() => router.push(`/teacher/clubs/${club.id}/settings`)}
                       className="btn-outline"
                     >
@@ -176,7 +182,7 @@ export default function TeacherClubsPage() {
                     </button>
                     <button
                       onClick={() => fetchClubDetails(club.id)}
-                      className="btn-primary"
+                      className="btn-outline"
                     >
                       {clubDetails[club.id] ? "Hide Members" : "View Members"}
                     </button>
@@ -207,6 +213,7 @@ export default function TeacherClubsPage() {
                                   {student.photoURL ? (
                                     <Image
                                       src={student.photoURL}
+                                      crossOrigin="anonymous"
                                       alt="Student"
                                       width={40}
                                       height={40}

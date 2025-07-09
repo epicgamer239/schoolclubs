@@ -79,6 +79,10 @@ export default function StudentDashboard() {
     setAllClubs((prev) => prev.filter((c) => c.id !== clubId));
   };
 
+  const handleClubClick = (clubId) => {
+    router.push(`/student/clubs/${clubId}`);
+  };
+
   return (
     <ProtectedRoute requiredRole="student">
       <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
@@ -100,7 +104,11 @@ export default function StudentDashboard() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {clubs.map((club) => (
-                <div key={club.id} className="card p-6 hover:shadow-lg transition-shadow">
+                <div 
+                  key={club.id} 
+                  className="card p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => handleClubClick(club.id)}
+                >
                   <div className="flex justify-between items-start mb-4">
                     <h3 className="text-lg font-semibold text-foreground">{club.name}</h3>
                     {club.leaderId === userData?.uid && (
@@ -115,7 +123,10 @@ export default function StudentDashboard() {
                       {club.studentIds?.length || 0} members
                     </span>
                     <button
-                      onClick={() => handleLeave(club.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleLeave(club.id);
+                      }}
                       className="btn-destructive text-sm"
                     >
                       Leave Club

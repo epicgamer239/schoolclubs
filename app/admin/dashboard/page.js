@@ -25,7 +25,6 @@ export default function AdminDashboard() {
     pendingSchoolRequests: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
-  const [topClubs, setTopClubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [otherAdmins, setOtherAdmins] = useState([]);
   const router = useRouter();
@@ -81,11 +80,7 @@ export default function AdminDashboard() {
           pendingSchoolRequests: schoolRequestsSnap.size
         });
 
-        // Get top clubs by membership
-        const sortedClubs = clubs
-          .sort((a, b) => (b.studentIds?.length || 0) - (a.studentIds?.length || 0))
-          .slice(0, 5);
-        setTopClubs(sortedClubs);
+        // Removed top clubs functionality
 
         // Get recent activity (recently created clubs)
         const recentClubs = clubs
@@ -296,7 +291,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Engagement Metrics */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <div className="card p-6">
               <h3 className="text-lg font-semibold mb-4">📊 Engagement Overview</h3>
               <div className="space-y-4">
@@ -333,33 +328,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Top Clubs */}
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">🏆 Top Clubs</h3>
-              <div className="space-y-3">
-                {topClubs.length > 0 ? (
-                  topClubs.map((club, index) => (
-                    <div key={club.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border border-border/50">
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                          index === 0 ? 'bg-warning/20 text-warning' :
-                          index === 1 ? 'bg-secondary/20 text-secondary' :
-                          'bg-primary/20 text-primary'
-                        }`}>
-                          {index + 1}
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">{club.name}</p>
-                          <p className="text-sm text-muted-foreground">{club.studentIds?.length || 0} members</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-muted-foreground text-center py-4">No clubs yet</p>
-                )}
-              </div>
-            </div>
+
 
             {/* Recent Activity */}
             <div className="card p-6">
@@ -443,32 +412,8 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* System Status */}
+          {/* Growth Metrics and Other Administrators */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">🔧 System Status</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Database</span>
-                  <span className="text-success flex items-center">
-                    <div className="w-2 h-2 bg-success rounded-full mr-2"></div>
-                    Online
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Authentication</span>
-                  <span className="text-success flex items-center">
-                    <div className="w-2 h-2 bg-success rounded-full mr-2"></div>
-                    Active
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Last Updated</span>
-                  <span className="text-foreground font-medium">{new Date().toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-
             <div className="card p-6">
               <h3 className="text-lg font-semibold mb-4">📈 Growth Metrics</h3>
               <div className="space-y-3">

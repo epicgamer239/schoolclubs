@@ -450,10 +450,10 @@ export default function SignupPage() {
 
       // Validate role matches join code type
       if (role === "teacher" && !isTeacherCode) {
-        setError("This join code is for students. Please use a teacher join code.");
+        setError("Invalid join code. Please check and try again.");
         return;
       } else if (role === "student" && isTeacherCode) {
-        setError("This join code is for teachers. Please use a student join code.");
+        setError("Invalid join code. Please check and try again.");
         return;
       }
 
