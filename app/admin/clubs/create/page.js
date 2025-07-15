@@ -74,6 +74,20 @@ export default function AdminCreateClubPage() {
     }
 
     try {
+      // Check for duplicate club names in the same school
+      const existingClubsQuery = query(
+        collection(firestore, "clubs"),
+        where("schoolId", "==", userData.schoolId),
+        where("name", "==", clubName.trim())
+      );
+      const existingClubsSnapshot = await getDocs(existingClubsQuery);
+      
+      if (!existingClubsSnapshot.empty) {
+        setError("A club with this name already exists in your school. Please choose a different name.");
+        setLoading(false);
+        return;
+      }
+
       const clubData = {
         name: clubName.trim(),
         description: description.trim(),
@@ -100,116 +114,121 @@ export default function AdminCreateClubPage() {
 
   return (
     <ProtectedRoute requiredRole="admin">
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
+      <div className="min-h-screen bg-background text-foreground">
         <DashboardTopBar title="Admin Dashboard" />
         
-        {/* Back Button */}
-        <button
-          onClick={() => router.push("/admin/clubs")}
-          className="mb-6 bg-secondary hover:bg-secondary/80 px-4 py-2 rounded-lg text-white font-semibold flex items-center gap-2 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to Manage Clubs
-        </button>
+        <div className="max-w-4xl mx-auto px-6 py-8">
+          {/* Back Button */}
+          <button
+            onClick={() => router.push("/admin/clubs")}
+            className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Manage Clubs
+          </button>
 
-        <div className="max-w-2xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">➕ Create New Club</h1>
-
-          {error && (
-            <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-xl mb-6">
-              {error}
+          <div className="max-w-2xl mx-auto">
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold tracking-tight">Create New Club</h1>
+              <p className="text-muted-foreground mt-2">Add a new club to your school's offerings</p>
             </div>
-          )}
 
-          <form onSubmit={handleCreate} className="card p-8">
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-semibold mb-3 text-foreground">
-                  Club Name *
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter club name"
-                  value={clubName}
-                  onChange={(e) => setClubName(e.target.value)}
-                  className="input"
-                  required
-                />
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-xl mb-6">
+                {error}
               </div>
+            )}
 
-              <div>
-                <label className="block text-sm font-semibold mb-3 text-foreground">
-                  Description *
-                </label>
-                <textarea
-                  placeholder="Describe what this club is about..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="input h-32 resize-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold mb-3 text-foreground">
-                  Teacher Sponsor (Optional)
-                </label>
-                {loadingTeachers ? (
-                  <div className="input text-muted-foreground">
-                    Loading teachers...
-                  </div>
-                ) : (
-                  <select
-                    value={selectedTeacherId}
-                    onChange={(e) => setSelectedTeacherId(e.target.value)}
+            <form onSubmit={handleCreate} className="card p-8">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold mb-3 text-foreground">
+                    Club Name *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter club name"
+                    value={clubName}
+                    onChange={(e) => setClubName(e.target.value)}
                     className="input"
-                  >
-                    <option value="">No teacher sponsor (Executive creation)</option>
-                    {teachers.map((teacher) => (
-                      <option key={teacher.id} value={teacher.id}>
-                        {teacher.displayName || teacher.email}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <p className="text-sm text-muted-foreground mt-2">
-                  Select a teacher to sponsor this club, or leave empty for executive creation without a sponsor.
-                </p>
-              </div>
+                    required
+                  />
+                </div>
 
-              <div className="flex gap-4 pt-6">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="btn-success flex items-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      Creating...
-                    </>
+                <div>
+                  <label className="block text-sm font-semibold mb-3 text-foreground">
+                    Description *
+                  </label>
+                  <textarea
+                    placeholder="Describe what this club is about..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="input h-32 resize-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-3 text-foreground">
+                    Teacher Sponsor (Optional)
+                  </label>
+                  {loadingTeachers ? (
+                    <div className="input text-muted-foreground">
+                      Loading teachers...
+                    </div>
                   ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      Create Club
-                    </>
+                    <select
+                      value={selectedTeacherId}
+                      onChange={(e) => setSelectedTeacherId(e.target.value)}
+                      className="input"
+                    >
+                      <option value="">No teacher sponsor (Executive creation)</option>
+                      {teachers.map((teacher) => (
+                        <option key={teacher.id} value={teacher.id}>
+                          {teacher.displayName || teacher.email}
+                        </option>
+                      ))}
+                    </select>
                   )}
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => router.push("/admin/clubs")}
-                  className="btn-outline"
-                >
-                  Cancel
-                </button>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Select a teacher to sponsor this club, or leave empty for executive creation without a sponsor.
+                  </p>
+                </div>
+
+                <div className="flex gap-4 pt-6">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="btn-primary flex items-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Create Club
+                      </>
+                    )}
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => router.push("/admin/clubs")}
+                    className="btn-outline"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       </div>
     </ProtectedRoute>

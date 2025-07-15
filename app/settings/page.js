@@ -210,21 +210,109 @@ export default function SettingsPage() {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
+  const checkCameraPermissions = async () => {
+    try {
+      // Check if permissions API is supported
+      if (navigator.permissions && navigator.permissions.query) {
+        const permission = await navigator.permissions.query({ name: 'camera' });
+        return permission.state;
+      }
+      return 'unknown';
+    } catch (error) {
+      console.log('Permissions API not supported');
+      return 'unknown';
+    }
+  };
+
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          width: { ideal: 640 }, 
-          height: { ideal: 480 },
-          facingMode: 'user'
-        } 
-      });
+      setError(""); // Clear any previous errors
+      console.log("Starting camera access...");
+      
+      // Check if getUserMedia is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error("getUserMedia not supported");
+        setError("Camera access is not supported in this browser. Please try uploading a file instead.");
+        return;
+      }
+      
+      // Check available devices first
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      console.log("Available video devices:", videoDevices);
+      
+      if (videoDevices.length === 0) {
+        setError("No camera found on your device. Please try uploading a file instead.");
+        return;
+      }
+      
+      // Try with minimal constraints first
+      console.log("Requesting camera with minimal constraints...");
+      
+      // Chrome-specific fix: try different constraint approaches
+      let mediaStream;
+      try {
+        // First try: basic video constraint
+        mediaStream = await navigator.mediaDevices.getUserMedia({ 
+          video: true,
+          audio: false
+        });
+      } catch (firstError) {
+        console.log("First attempt failed, trying alternative constraints...");
+        
+        try {
+          // Second try: more specific constraints
+          mediaStream = await navigator.mediaDevices.getUserMedia({ 
+            video: {
+              width: { ideal: 640 },
+              height: { ideal: 480 }
+            },
+            audio: false
+          });
+        } catch (secondError) {
+          console.log("Second attempt failed, trying with any available camera...");
+          
+          // Third try: any available camera
+          mediaStream = await navigator.mediaDevices.getUserMedia({ 
+            video: {
+              facingMode: { ideal: 'user' }
+            },
+            audio: false
+          });
+        }
+      }
+      
+      console.log("Camera access granted:", mediaStream);
       setStream(mediaStream);
       setShowCamera(true);
       setShowPhotoOptions(false);
+      
+      // Set the video source
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        console.log("Video source set");
+      } else {
+        console.error("Video ref not found");
+      }
     } catch (error) {
       console.error("Error accessing camera:", error);
-      setError("Could not access camera. Please try uploading a file instead.");
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      
+      // Provide specific error messages based on error type
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        setError("Camera access was denied. Please check your browser settings and ensure camera permissions are allowed for this site.");
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        setError("No camera found on your device. Please try uploading a file instead.");
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        setError("Camera is already in use by another application. Please close other camera apps and try again.");
+      } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+        setError("Camera doesn't support the required settings. Please try uploading a file instead.");
+      } else if (error.name === 'TypeError' || error.name === 'TypeError') {
+        setError("Camera access is not supported in this browser. Please try uploading a file instead.");
+      } else {
+        setError(`Camera error: ${error.message}. Please try uploading a file instead.`);
+      }
     }
   };
 
@@ -254,8 +342,10 @@ export default function SettingsPage() {
   };
 
   const handleFileUpload = (event) => {
+    console.log("File upload triggered", event.target.files);
     const file = event.target.files[0];
     if (file) {
+      console.log("File selected:", file.name, file.size, file.type);
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
         setError("File size must be less than 5MB.");
         return;
@@ -268,6 +358,7 @@ export default function SettingsPage() {
       
       setPreviewImage(file);
       setShowPhotoOptions(false);
+      setError(""); // Clear any previous errors
     }
   };
 
@@ -278,21 +369,33 @@ export default function SettingsPage() {
     setError("");
     
     try {
+      console.log("Starting profile picture upload...");
+      console.log("Preview image:", previewImage);
+      console.log("User ID:", userData.uid);
+      
       // Create a unique filename
       const timestamp = Date.now();
       const filename = `profile-pictures/${userData.uid}_${timestamp}.jpg`;
       const storageRef = ref(storage, filename);
       
+      console.log("Storage reference created:", filename);
+      
       // Upload the image
+      console.log("Uploading bytes...");
       await uploadBytes(storageRef, previewImage);
+      console.log("Upload successful");
       
       // Get the download URL
+      console.log("Getting download URL...");
       const downloadURL = await getDownloadURL(storageRef);
+      console.log("Download URL:", downloadURL);
       
       // Update user profile in Firestore
+      console.log("Updating Firestore...");
       await updateDoc(doc(firestore, "users", userData.uid), {
         photoURL: downloadURL
       });
+      console.log("Firestore update successful");
       
       setSuccess("Profile picture updated successfully!");
       setPreviewImage(null);
@@ -301,7 +404,18 @@ export default function SettingsPage() {
       setTimeout(() => setSuccess(""), 3000);
     } catch (error) {
       console.error("Error uploading profile picture:", error);
-      setError("Failed to upload profile picture. Please try again.");
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      
+      if (error.code === 'storage/unauthorized') {
+        setError("Upload failed: Unauthorized. Please check your Firebase configuration.");
+      } else if (error.code === 'storage/quota-exceeded') {
+        setError("Upload failed: Storage quota exceeded.");
+      } else if (error.code === 'storage/retry-limit-exceeded') {
+        setError("Upload failed: Network error. Please try again.");
+      } else {
+        setError(`Upload failed: ${error.message}. Please try again.`);
+      }
     } finally {
       setUploadingPhoto(false);
     }
@@ -349,13 +463,120 @@ export default function SettingsPage() {
     }
   };
 
+  const showCameraPermissionHelp = () => {
+    const helpMessage = `
+Camera Permission Help:
+
+1. When prompted, click "Allow" to grant camera access
+2. If you accidentally clicked "Block", you can:
+   - Click the camera icon in your browser's address bar
+   - Or go to your browser settings and allow camera access for this site
+   - Or use the "Upload from Device" option instead
+
+3. Make sure no other apps are using your camera
+4. Try refreshing the page and trying again
+
+If camera still doesn't work, you can always upload a photo from your device instead.
+    `;
+    alert(helpMessage);
+  };
+
+  const resetCameraPermissions = async () => {
+    try {
+      console.log("Attempting to reset camera permissions...");
+      
+      // Try to request camera access directly
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      
+      // If successful, stop the stream immediately
+      stream.getTracks().forEach(track => track.stop());
+      
+      console.log("Camera permission reset successful");
+      setError("Camera permissions have been reset. Please try the camera button again.");
+      
+      // Clear error after 3 seconds
+      setTimeout(() => setError(""), 3000);
+      
+    } catch (error) {
+      console.error("Failed to reset camera permissions:", error);
+      setError("Could not reset camera permissions. Please try the manual steps in the help section.");
+    }
+  };
+
+  const testFirebaseStorage = async () => {
+    try {
+      console.log("Testing Firebase Storage...");
+      const response = await fetch('/api/test-storage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const result = await response.json();
+      console.log("Storage test result:", result);
+      
+      if (result.success) {
+        setSuccess("Firebase Storage is working correctly!");
+      } else {
+        setError(`Firebase Storage test failed: ${result.error}`);
+      }
+      
+      // Clear messages after 3 seconds
+      setTimeout(() => {
+        setSuccess("");
+        setError("");
+      }, 3000);
+      
+    } catch (error) {
+      console.error("Storage test error:", error);
+      setError("Failed to test Firebase Storage. Please check your configuration.");
+    }
+  };
+
+  const checkAndResetCameraPermissions = async () => {
+    try {
+      console.log("Checking camera permissions...");
+      console.log("User agent:", navigator.userAgent);
+      console.log("Is Chrome:", navigator.userAgent.includes('Chrome'));
+      
+      // Check if permissions API is available
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const permission = await navigator.permissions.query({ name: 'camera' });
+          console.log("Current camera permission:", permission.state);
+          
+          if (permission.state === 'denied') {
+            console.log("Camera permission is denied");
+            return false;
+          }
+        } catch (permError) {
+          console.log("Permissions API error:", permError);
+        }
+      }
+      
+      // Try to enumerate devices to see if we can access camera info
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      console.log("Found video devices:", videoDevices.length);
+      console.log("Video devices:", videoDevices);
+      
+      return videoDevices.length > 0;
+    } catch (error) {
+      console.error("Error checking camera permissions:", error);
+      return false;
+    }
+  };
+
   if (authLoading) {
     return (
       <ProtectedRoute>
-        <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
+        <div className="min-h-screen bg-background">
           <DashboardTopBar title="Settings" />
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+          <div className="container">
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+            </div>
           </div>
         </div>
       </ProtectedRoute>
@@ -364,25 +585,14 @@ export default function SettingsPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
+      <div className="min-h-screen bg-background">
         <DashboardTopBar title="Settings" />
-        
-        {/* Back Button */}
-        <button
-          onClick={() => router.back()}
-          className="mb-6 bg-secondary hover:bg-secondary/80 px-4 py-2 rounded-lg text-white font-semibold flex items-center gap-2 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
-
-        <div className="max-w-2xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground">Account Settings</h1>
-            <p className="text-muted-foreground mt-2">Manage your account information and security settings</p>
-          </div>
+        <div className="container">
+          <div className="max-w-2xl mx-auto">
+            <div className="mb-8">
+              <h1 className="text-4xl font-bold text-foreground">Account Settings</h1>
+              <p className="text-muted-foreground mt-2">Manage your account information and security settings</p>
+            </div>
           
           {error && (
             <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-lg mb-6">
@@ -504,7 +714,16 @@ export default function SettingsPage() {
                     
                     <div className="space-y-3">
                       <button
-                        onClick={startCamera}
+                        onClick={async () => {
+                          console.log("Camera button clicked");
+                          const hasPermission = await checkAndResetCameraPermissions();
+                          console.log("Has camera permission:", hasPermission);
+                          if (hasPermission) {
+                            startCamera();
+                          } else {
+                            setError("Camera permission check failed. Please check your browser settings.");
+                          }
+                        }}
                         className="w-full btn-primary flex items-center justify-center gap-2"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -515,7 +734,21 @@ export default function SettingsPage() {
                       </button>
                       
                       <button
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => {
+                          console.log("Upload button clicked");
+                          if (fileInputRef.current) {
+                            console.log("File input found, clicking...");
+                            fileInputRef.current.click();
+                          } else {
+                            console.log("File input not found");
+                            // Fallback: create a temporary file input
+                            const tempInput = document.createElement('input');
+                            tempInput.type = 'file';
+                            tempInput.accept = 'image/*';
+                            tempInput.onchange = handleFileUpload;
+                            tempInput.click();
+                          }
+                        }}
                         className="w-full btn-outline flex items-center justify-center gap-2"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -531,6 +764,13 @@ export default function SettingsPage() {
                         Cancel
                       </button>
                     </div>
+                    
+                    {/* Camera permission info */}
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        <strong>Note:</strong> If camera access is denied, you can still upload a photo from your device using the "Upload from Device" option.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -542,6 +782,7 @@ export default function SettingsPage() {
                 accept="image/*"
                 onChange={handleFileUpload}
                 className="hidden"
+                style={{ display: 'none' }}
               />
 
               {/* Camera Interface */}
@@ -555,6 +796,7 @@ export default function SettingsPage() {
                         ref={videoRef}
                         autoPlay
                         playsInline
+                        muted
                         className="w-full rounded-lg border border-border"
                         onLoadedMetadata={() => {
                           if (videoRef.current) {
@@ -577,6 +819,27 @@ export default function SettingsPage() {
                         className="flex-1 btn-secondary"
                       >
                         Cancel
+                      </button>
+                    </div>
+                    
+                    <div className="mt-3 text-center space-y-2">
+                      <button
+                        onClick={resetCameraPermissions}
+                        className="text-sm text-green-600 hover:text-green-800 underline mr-4"
+                      >
+                        Reset Camera Permissions
+                      </button>
+                      <button
+                        onClick={showCameraPermissionHelp}
+                        className="text-sm text-blue-600 hover:text-blue-800 underline mr-4"
+                      >
+                        Having trouble with camera?
+                      </button>
+                      <button
+                        onClick={testFirebaseStorage}
+                        className="text-sm text-purple-600 hover:text-purple-800 underline"
+                      >
+                        Test Firebase Storage
                       </button>
                     </div>
                   </div>
@@ -758,8 +1021,9 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
-        </div>
-      </div>
+        </div> {/* max-w-2xl mx-auto */}
+      </div> {/* .container */}
+    </div> {/* min-h-screen */}
     </ProtectedRoute>
   );
 } 

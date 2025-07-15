@@ -19,12 +19,11 @@ export default function SchoolManagementPage() {
   const [schoolDescription, setSchoolDescription] = useState("");
   const [studentJoinType, setStudentJoinType] = useState("code"); // "code" or "manual"
   const [teacherJoinType, setTeacherJoinType] = useState("code"); // "code" or "manual"
-  const [maxClubsPerStudent, setMaxClubsPerStudent] = useState("");
-  const [maxStudentsPerClub, setMaxStudentsPerClub] = useState("");
   const [allowStudentCreatedClubs, setAllowStudentCreatedClubs] = useState(false);
   const [requireTeacherApproval, setRequireTeacherApproval] = useState(true);
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [authorizedAdmins, setAuthorizedAdmins] = useState([]);
+  const [schoolCreator, setSchoolCreator] = useState(null);
 
   const router = useRouter();
   const { userData, loading: authLoading } = useAuth();
@@ -49,11 +48,21 @@ export default function SchoolManagementPage() {
         setSchoolDescription(schoolData.description || "");
         setStudentJoinType(schoolData.studentJoinType || "code");
         setTeacherJoinType(schoolData.teacherJoinType || "code");
-        setMaxClubsPerStudent(schoolData.maxClubsPerStudent || "");
-        setMaxStudentsPerClub(schoolData.maxStudentsPerClub || "");
         setAllowStudentCreatedClubs(schoolData.allowStudentCreatedClubs || false);
         setRequireTeacherApproval(schoolData.requireTeacherApproval !== false); // Default to true
         setAuthorizedAdmins(schoolData.authorizedAdminEmails || []);
+        
+        // Get school creator info
+        if (schoolData.createdBy) {
+          try {
+            const creatorDoc = await getDoc(doc(firestore, "users", schoolData.createdBy));
+            if (creatorDoc.exists()) {
+              setSchoolCreator(creatorDoc.data());
+            }
+          } catch (error) {
+            console.error("Error fetching school creator:", error);
+          }
+        }
         
         setLoading(false);
       } catch (error) {
@@ -84,15 +93,6 @@ export default function SchoolManagementPage() {
         requireTeacherApproval,
       };
 
-      // Only add numeric fields if they're set and valid
-      if (maxClubsPerStudent && !isNaN(maxClubsPerStudent) && parseInt(maxClubsPerStudent) > 0) {
-        updateData.maxClubsPerStudent = parseInt(maxClubsPerStudent);
-      }
-
-      if (maxStudentsPerClub && !isNaN(maxStudentsPerClub) && parseInt(maxStudentsPerClub) > 0) {
-        updateData.maxStudentsPerClub = parseInt(maxStudentsPerClub);
-      }
-
       await updateDoc(doc(firestore, "schools", userData.schoolId), updateData);
       
       setSuccess("School settings updated successfully!");
@@ -117,6 +117,12 @@ export default function SchoolManagementPage() {
     const email = newAdminEmail.trim().toLowerCase();
     if (authorizedAdmins.includes(email)) {
       setError("This email is already authorized.");
+      return;
+    }
+
+    // Don't allow adding the school creator's email
+    if (schoolCreator && schoolCreator.email === email) {
+      setError("The school creator is automatically authorized and cannot be added to this list.");
       return;
     }
 
@@ -157,6 +163,34 @@ export default function SchoolManagementPage() {
     }
   };
 
+  const generateUniqueJoinCode = async (codeType) => {
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    while (attempts < maxAttempts) {
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      
+      // Check if code already exists (excluding current school)
+      const query = codeType === 'student' 
+        ? query(collection(firestore, "schools"), where("studentJoinCode", "==", code))
+        : query(collection(firestore, "schools"), where("teacherJoinCode", "==", code));
+      
+      const snapshot = await getDocs(query);
+      
+      // Check if the code exists in any other school
+      const codeExists = snapshot.docs.some(doc => doc.id !== school.id);
+      
+      if (!codeExists) {
+        return code;
+      }
+      
+      attempts++;
+    }
+    
+    // If we can't find a unique code after max attempts, add a timestamp
+    return Math.random().toString(36).substring(2, 8).toUpperCase() + Date.now().toString().slice(-2);
+  };
+
   const regenerateJoinCodes = async () => {
     if (!school) return;
 
@@ -164,8 +198,8 @@ export default function SchoolManagementPage() {
     setError(null);
 
     try {
-      const newStudentCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const newTeacherCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const newStudentCode = await generateUniqueJoinCode('student');
+      const newTeacherCode = await generateUniqueJoinCode('teacher');
 
       await updateDoc(doc(firestore, "schools", school.id), {
         studentJoinCode: newStudentCode,
@@ -384,38 +418,6 @@ export default function SchoolManagementPage() {
               <div>
                 <h3 className="text-xl font-semibold mb-6 text-foreground">Club Settings</h3>
                 <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-semibold mb-3 text-foreground">
-                        Max Clubs per Student (Optional)
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="e.g., 3"
-                        value={maxClubsPerStudent}
-                        onChange={(e) => setMaxClubsPerStudent(e.target.value)}
-                        min="1"
-                        className="input"
-                      />
-                      <p className="text-sm text-muted-foreground mt-2">Leave empty for no limit</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold mb-3 text-foreground">
-                        Max Students per Club (Optional)
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="e.g., 20"
-                        value={maxStudentsPerClub}
-                        onChange={(e) => setMaxStudentsPerClub(e.target.value)}
-                        min="1"
-                        className="input"
-                      />
-                      <p className="text-sm text-muted-foreground mt-2">Leave empty for no limit</p>
-                    </div>
-                  </div>
-
                   <div className="space-y-4">
                     <label className="flex items-center space-x-3">
                       <input
@@ -446,9 +448,29 @@ export default function SchoolManagementPage() {
                 </div>
               </div>
 
+              {/* School Creator */}
+              {schoolCreator && (
+                <div>
+                  <h3 className="text-xl font-semibold mb-6 text-foreground">👑 School Creator</h3>
+                  <p className="text-muted-foreground mb-6">
+                    The main administrator who created this school. This account has full access and cannot be removed.
+                  </p>
+                  <div className="card p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-primary rounded-full"></div>
+                      <div>
+                        <span className="text-foreground font-medium">{schoolCreator.displayName || schoolCreator.email}</span>
+                        <p className="text-sm text-muted-foreground">{schoolCreator.email}</p>
+                      </div>
+                      <span className="ml-auto text-primary text-sm font-semibold">Creator</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Authorized Admin Emails */}
               <div>
-                <h3 className="text-xl font-semibold mb-6 text-foreground">👥 Authorized Admin Emails</h3>
+                <h3 className="text-xl font-semibold mb-6 text-foreground">👥 Additional Authorized Admins</h3>
                 <p className="text-muted-foreground mb-6">
                   Add email addresses that will automatically receive admin access when they sign up.
                   Perfect for counselors, assistant principals, and other administrators.
@@ -474,7 +496,7 @@ export default function SchoolManagementPage() {
 
                 {authorizedAdmins.length > 0 ? (
                   <div className="space-y-4">
-                    <h4 className="text-sm font-semibold text-foreground">Authorized Emails:</h4>
+                    <h4 className="text-sm font-semibold text-foreground">Additional Authorized Emails:</h4>
                     <div className="card overflow-hidden">
                       {authorizedAdmins.map((email, index) => (
                         <div 
@@ -504,7 +526,7 @@ export default function SchoolManagementPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                       </svg>
                     </div>
-                    <p className="text-muted-foreground text-sm">No authorized admin emails added yet.</p>
+                    <p className="text-muted-foreground text-sm">No additional authorized admin emails added yet.</p>
                     <p className="text-muted-foreground text-xs mt-2">Add email addresses above to grant admin access</p>
                   </div>
                 )}

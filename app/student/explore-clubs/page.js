@@ -120,6 +120,11 @@ export default function StudentExploreClubs() {
       }
     }
 
+    // Check if user is already a member
+    if (userData && club.studentIds && club.studentIds.includes(userData.uid)) {
+      return { canJoin: false, reason: "You are already a member of this club" };
+    }
+
     return { canJoin: true };
   };
 
@@ -138,6 +143,21 @@ export default function StudentExploreClubs() {
 
     try {
       if (club.joinType === "request") {
+        // Check for existing join request
+        const existingRequestQuery = query(
+          collection(firestore, "joinRequests"),
+          where("clubId", "==", clubId),
+          where("studentId", "==", userData.uid),
+          where("status", "==", "pending")
+        );
+        const existingRequestSnapshot = await getDocs(existingRequestQuery);
+        
+        if (!existingRequestSnapshot.empty) {
+          alert("You already have a pending request to join this club. Please wait for the teacher to review your request.");
+          setJoiningClub(null);
+          return;
+        }
+
         // Create join request
         await addDoc(collection(firestore, "joinRequests"), {
           clubId,
@@ -295,12 +315,12 @@ export default function StudentExploreClubs() {
                         
                         {/* Status Badges */}
                         {isAtCapacity && (
-                          <span className="badge badge-destructive">
+                          <span className="badge-destructive">
                             Full
                           </span>
                         )}
                         {isPastDeadline && (
-                          <span className="badge badge-destructive">
+                          <span className="badge-destructive">
                             Closed
                           </span>
                         )}

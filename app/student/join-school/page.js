@@ -52,6 +52,21 @@ export default function JoinSchoolPage() {
 
       // 3. Check if manual approval is required
       if (schoolData.studentJoinType === "manual") {
+        // Check for existing join request
+        const existingRequestQuery = query(
+          collection(firestore, "schoolJoinRequests"),
+          where("studentId", "==", userData.uid),
+          where("schoolId", "==", schoolId),
+          where("status", "==", "pending")
+        );
+        const existingRequestSnapshot = await getDocs(existingRequestQuery);
+        
+        if (!existingRequestSnapshot.empty) {
+          setSuccess("You already have a pending request to join this school. Please wait for administrator approval.");
+          setLoading(false);
+          return;
+        }
+
         // Create a school join request
         await addDoc(collection(firestore, "schoolJoinRequests"), {
           studentId: userData.uid,

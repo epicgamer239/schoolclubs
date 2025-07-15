@@ -61,6 +61,21 @@ export default function JoinSchoolPage() {
       const joinTypeSetting = joinType === "student" ? schoolData.studentJoinType : schoolData.teacherJoinType;
       
       if (joinTypeSetting === "manual") {
+        // Check for existing join request
+        const existingRequestQuery = query(
+          collection(firestore, "schoolJoinRequests"),
+          where("studentId", "==", userData.uid),
+          where("schoolId", "==", schoolId),
+          where("status", "==", "pending")
+        );
+        const existingRequestSnapshot = await getDocs(existingRequestQuery);
+        
+        if (!existingRequestSnapshot.empty) {
+          setSuccess(`You already have a pending request to join this school as a ${userRole}. Please wait for administrator approval.`);
+          setLoading(false);
+          return;
+        }
+
         // Create a school join request
         await addDoc(collection(firestore, "schoolJoinRequests"), {
           studentId: userData.uid,
@@ -97,50 +112,60 @@ export default function JoinSchoolPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
+      <div className="min-h-screen bg-background text-foreground">
         <DashboardTopBar title="Join School" />
         
-        <div className="max-w-md mx-auto mt-8">
-          <h1 className="text-3xl font-bold mb-8 text-center">🏫 Join Your School</h1>
-          
-          <div className="card p-8 space-y-6">
-            <div>
-              <label htmlFor="joinCode" className="block text-sm font-semibold mb-3 text-foreground">
-                School Join Code
-              </label>
-              <input
-                id="joinCode"
-                type="text"
-                placeholder="Enter your school's join code"
-                className="input uppercase"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                disabled={loading}
-              />
-              <p className="text-sm text-muted-foreground mt-2">
-                Enter your student or teacher join code provided by your school administrator.
-              </p>
+        <div className="max-w-4xl mx-auto px-6 py-8">
+          <div className="max-w-md mx-auto">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <h1 className="text-3xl font-bold tracking-tight">Join Your School</h1>
+              <p className="text-muted-foreground mt-2">Connect to your school's club management system</p>
             </div>
             
-            <button
-              onClick={handleJoin}
-              disabled={loading}
-              className="btn-primary w-full disabled:opacity-50"
-            >
-              {loading ? "Processing..." : "Join School"}
-            </button>
-            
-            {error && (
-              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-xl">
-                <p className="text-destructive text-sm font-medium">{error}</p>
+            <div className="card p-8 space-y-6">
+              <div>
+                <label htmlFor="joinCode" className="block text-sm font-semibold mb-3 text-foreground">
+                  School Join Code
+                </label>
+                <input
+                  id="joinCode"
+                  type="text"
+                  placeholder="Enter your school's join code"
+                  className="input uppercase"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  disabled={loading}
+                />
+                <p className="text-sm text-muted-foreground mt-2">
+                  Enter your student or teacher join code provided by your school administrator.
+                </p>
               </div>
-            )}
+              
+              <button
+                onClick={handleJoin}
+                disabled={loading}
+                className="btn-primary w-full disabled:opacity-50"
+              >
+                {loading ? "Processing..." : "Join School"}
+              </button>
+              
+              {error && (
+                <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-xl">
+                  <p className="text-destructive text-sm font-medium">{error}</p>
+                </div>
+              )}
 
-            {success && (
-              <div className="p-4 bg-green-600/10 border border-green-600/20 rounded-xl">
-                <p className="text-green-600 text-sm font-medium">{success}</p>
-              </div>
-            )}
+              {success && (
+                <div className="p-4 bg-green-600/10 border border-green-600/20 rounded-xl">
+                  <p className="text-green-600 text-sm font-medium">{success}</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

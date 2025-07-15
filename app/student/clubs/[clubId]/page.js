@@ -36,6 +36,8 @@ export default function StudentClubPage() {
     time: "",
     location: "",
   });
+  const [joiningEvent, setJoiningEvent] = useState(null);
+  const [leavingEvent, setLeavingEvent] = useState(null);
 
   useEffect(() => {
     const fetchClubData = async () => {
@@ -95,7 +97,37 @@ export default function StudentClubPage() {
     e.preventDefault();
     if (!userData || !club) return;
 
+    // Validate date is not in the past
+    const selectedDate = new Date(newEvent.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (selectedDate < today) {
+      alert("Cannot create events in the past. Please select a future date.");
+      return;
+    }
+
     try {
+      // Check for duplicate events with same title, date, and time
+      const existingEventsQuery = query(
+        collection(firestore, "events"),
+        where("clubId", "==", clubId),
+        where("title", "==", newEvent.title.trim()),
+        where("date", "==", newEvent.date)
+      );
+      const existingEventsSnapshot = await getDocs(existingEventsQuery);
+      
+      // Check if an event with same title, date, and time exists
+      const duplicateEvent = existingEventsSnapshot.docs.find(doc => {
+        const eventData = doc.data();
+        return eventData.time === newEvent.time;
+      });
+      
+      if (duplicateEvent) {
+        alert("An event with this title, date, and time already exists. Please choose different details.");
+        return;
+      }
+
       const eventData = {
         ...newEvent,
         clubId,
@@ -136,7 +168,9 @@ export default function StudentClubPage() {
   };
 
   const handleJoinEvent = async (eventId) => {
-    if (!userData) return;
+    if (!userData || joiningEvent) return;
+
+    setJoiningEvent(eventId);
 
     try {
       await updateDoc(doc(firestore, "events", eventId), {
@@ -151,11 +185,15 @@ export default function StudentClubPage() {
       ));
     } catch (error) {
       console.error("Error joining event:", error);
+    } finally {
+      setJoiningEvent(null);
     }
   };
 
   const handleLeaveEvent = async (eventId) => {
-    if (!userData) return;
+    if (!userData || leavingEvent) return;
+
+    setLeavingEvent(eventId);
 
     try {
       await updateDoc(doc(firestore, "events", eventId), {
@@ -170,6 +208,8 @@ export default function StudentClubPage() {
       ));
     } catch (error) {
       console.error("Error leaving event:", error);
+    } finally {
+      setLeavingEvent(null);
     }
   };
 
@@ -201,10 +241,12 @@ export default function StudentClubPage() {
   if (loading) {
     return (
       <ProtectedRoute requiredRole="student">
-        <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
+        <div className="min-h-screen bg-background text-foreground">
           <DashboardTopBar title="Club Details" />
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+            </div>
           </div>
         </div>
       </ProtectedRoute>
@@ -214,16 +256,18 @@ export default function StudentClubPage() {
   if (!club) {
     return (
       <ProtectedRoute requiredRole="student">
-        <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
+        <div className="min-h-screen bg-background text-foreground">
           <DashboardTopBar title="Club Details" />
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">Club Not Found</h1>
-            <button
-              onClick={() => router.push("/student/dashboard")}
-              className="btn-primary"
-            >
-              Back to Dashboard
-            </button>
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <div className="text-center">
+              <h1 className="text-2xl font-bold mb-4">Club Not Found</h1>
+              <button
+                onClick={() => router.push("/student/dashboard")}
+                className="btn-primary"
+              >
+                Back to Dashboard
+              </button>
+            </div>
           </div>
         </div>
       </ProtectedRoute>
@@ -232,21 +276,21 @@ export default function StudentClubPage() {
 
   return (
     <ProtectedRoute requiredRole="student">
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
+      <div className="min-h-screen bg-background text-foreground">
         <DashboardTopBar title="Club Details" />
         
-        {/* Back Button */}
-        <button
-          onClick={() => router.push("/student/dashboard")}
-          className="mb-6 bg-secondary hover:bg-secondary/80 px-4 py-2 rounded-lg text-white font-semibold flex items-center gap-2 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to Dashboard
-        </button>
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          {/* Back Button */}
+          <button
+            onClick={() => router.push("/student/dashboard")}
+            className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Dashboard
+          </button>
 
-        <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-6">
@@ -258,11 +302,16 @@ export default function StudentClubPage() {
                     <p className="text-muted-foreground text-lg">{club.description}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="badge badge-primary">
+                    <span className="badge-primary">
                       {club.studentIds?.length || 0} members
                     </span>
                     {club.leaderId === userData?.uid && (
-                      <span className="badge badge-warning">👑 Leader</span>
+                      <span className="badge-primary">
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                        </svg>
+                        Leader
+                      </span>
                     )}
                   </div>
                 </div>
@@ -273,17 +322,17 @@ export default function StudentClubPage() {
                     <div className="text-sm text-muted-foreground">Members</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-success">{events.length}</div>
+                    <div className="text-2xl font-bold text-primary">{events.length}</div>
                     <div className="text-sm text-muted-foreground">Upcoming Events</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-secondary">
+                    <div className="text-2xl font-bold text-muted-foreground">
                       {formatDate(club.createdAt?.toDate?.() || new Date())}
                     </div>
                     <div className="text-sm text-muted-foreground">Created</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-warning">
+                    <div className="text-2xl font-bold text-muted-foreground">
                       {club.joinType === "request" ? "Request" : "Open"}
                     </div>
                     <div className="text-sm text-muted-foreground">Join Type</div>
@@ -293,7 +342,12 @@ export default function StudentClubPage() {
 
               {/* Members Section */}
               <div className="card p-6">
-                <h2 className="text-2xl font-bold mb-4">👥 Members</h2>
+                <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Members
+                </h2>
                 {members.length === 0 ? (
                   <p className="text-muted-foreground">No members yet.</p>
                 ) : (
@@ -335,13 +389,21 @@ export default function StudentClubPage() {
               {/* Upcoming Events */}
               <div className="card p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold">📅 Upcoming Events</h2>
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Upcoming Events
+                  </h2>
                   {canManageEvents() && (
                     <button
                       onClick={() => setShowCreateEvent(true)}
                       className="btn-primary text-sm"
                     >
-                      ➕ Create Event
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Create Event
                     </button>
                   )}
                 </div>
@@ -361,18 +423,25 @@ export default function StudentClubPage() {
                         <p className="text-sm text-muted-foreground mb-3">{event.description}</p>
                         <div className="space-y-1 mb-3">
                           <div className="flex items-center text-xs text-muted-foreground">
-                            <span className="mr-2">📅</span>
+                            <svg className="w-3 h-3 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
                             {formatDate(event.date)}
                           </div>
                           {event.time && (
                             <div className="flex items-center text-xs text-muted-foreground">
-                              <span className="mr-2">🕒</span>
+                              <svg className="w-3 h-3 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
                               {formatTime(event.time)}
                             </div>
                           )}
                           {event.location && (
                             <div className="flex items-center text-xs text-muted-foreground">
-                              <span className="mr-2">📍</span>
+                              <svg className="w-3 h-3 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
                               {event.location}
                             </div>
                           )}
@@ -382,13 +451,16 @@ export default function StudentClubPage() {
                             ? handleLeaveEvent(event.id) 
                             : handleJoinEvent(event.id)
                           }
+                          disabled={joiningEvent === event.id || leavingEvent === event.id}
                           className={`w-full text-sm ${
                             isAttendingEvent(event) 
                               ? "btn-outline" 
                               : "btn-primary"
-                          }`}
+                          } ${(joiningEvent === event.id || leavingEvent === event.id) ? "opacity-50 cursor-not-allowed" : ""}`}
                         >
-                          {isAttendingEvent(event) ? "Leave Event" : "Join Event"}
+                          {joiningEvent === event.id ? "Joining..." : 
+                           leavingEvent === event.id ? "Leaving..." :
+                           isAttendingEvent(event) ? "Leave Event" : "Join Event"}
                         </button>
                       </div>
                     ))}

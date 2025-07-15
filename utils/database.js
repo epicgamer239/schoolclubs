@@ -1,0 +1,426 @@
+import { firestore } from '../firebase';
+import { 
+  collection, 
+  doc, 
+  getDoc, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  startAfter,
+  writeBatch,
+  runTransaction,
+  onSnapshot,
+  serverTimestamp
+} from 'firebase/firestore';
+import { cacheUtils, cacheKeys } from './cache';
+import { logSecurityEvent, validateField, sanitizeInput } from './security';
+
+// Database configuration
+const DB_CONFIG = {
+  MAX_BATCH_SIZE: 500,
+  DEFAULT_LIMIT: 20,
+  MAX_LIMIT: 100,
+  CACHE_TTL: 300, // 5 minutes
+  RETRY_ATTEMPTS: 3,
+  RETRY_DELAY: 1000
+};
+
+// Database security and validation utilities
+class DatabaseManager {
+  constructor() {
+    this.batch = null;
+    this.transaction = null;
+  }
+
+  // Validate and sanitize data before database operations
+  validateData(data, schema) {
+    const validated = {};
+    const errors = [];
+
+    for (const [field, rules] of Object.entries(schema)) {
+      const value = data[field];
+      
+      if (rules.required && !value) {
+        errors.push(`${field} is required`);
+        continue;
+      }
+
+      if (value !== undefined && value !== null) {
+        // Sanitize string values
+        if (typeof value === 'string') {
+          validated[field] = sanitizeInput(value);
+        } else {
+          validated[field] = value;
+        }
+
+        // Validate field
+        if (rules.validator && !rules.validator(validated[field])) {
+          errors.push(`${field} validation failed`);
+        }
+      }
+  }
+
+    if (errors.length > 0) {
+      throw new Error(`Validation errors: ${errors.join(', ')}`);
+    }
+
+    return validated;
+  }
+
+  // Retry mechanism for database operations
+  async withRetry(operation, maxAttempts = DB_CONFIG.RETRY_ATTEMPTS) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        
+        // Don't retry on validation errors
+        if (error.message.includes('Validation errors')) {
+          throw error;
+        }
+        
+        // Log retry attempt
+        logSecurityEvent('DB_RETRY_ATTEMPT', {
+          attempt,
+          maxAttempts,
+          error: error.message,
+          operation: operation.name || 'unknown'
+        });
+        
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, DB_CONFIG.RETRY_DELAY * attempt));
+        }
+      }
+    }
+    
+    throw lastError;
+  }
+
+  // Get document with caching
+  async getDocument(collectionName, docId, useCache = true) {
+    const cacheKey = cacheKeys[collectionName]?.(docId) || `${collectionName}:${docId}`;
+    
+    if (useCache) {
+      const cached = cacheUtils.getCachedUser(docId);
+      if (cached) return cached;
+    }
+
+    return this.withRetry(async () => {
+      const docRef = doc(firestore, collectionName, docId);
+      const docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        throw new Error('Document not found');
+      }
+      
+      const data = { id: docSnap.id, ...docSnap.data() };
+      
+      // Cache the result
+      if (useCache) {
+        cacheUtils.cacheUser(docId, data);
+      }
+      
+      return data;
+    });
+  }
+
+  // Get documents with pagination and caching
+  async getDocuments(collectionName, options = {}) {
+    const {
+      whereClauses = [],
+      orderByField = 'createdAt',
+      orderDirection = 'desc',
+      limitCount = DB_CONFIG.DEFAULT_LIMIT,
+      startAfterDoc = null,
+      useCache = true
+    } = options;
+
+    // Validate limit
+    if (limitCount > DB_CONFIG.MAX_LIMIT) {
+      limitCount = DB_CONFIG.MAX_LIMIT;
+    }
+
+    const cacheKey = `${collectionName}:${JSON.stringify(options)}`;
+    
+    if (useCache) {
+      const cached = cacheUtils.getCachedClubs(collectionName);
+      if (cached) return cached;
+    }
+
+    return this.withRetry(async () => {
+      let q = collection(firestore, collectionName);
+      
+      // Apply where clauses
+      whereClauses.forEach(({ field, operator, value }) => {
+        q = query(q, where(field, operator, value));
+      });
+      
+      // Apply ordering
+      q = query(q, orderBy(orderByField, orderDirection));
+      
+      // Apply pagination
+      if (startAfterDoc) {
+        q = query(q, startAfter(startAfterDoc));
+      }
+      
+      q = query(q, limit(limitCount));
+      
+      const querySnapshot = await getDocs(q);
+      const documents = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Cache the result
+      if (useCache) {
+        cacheUtils.cacheClubs(collectionName, documents);
+      }
+      
+      return {
+        documents,
+        lastDoc: querySnapshot.docs[querySnapshot.docs.length - 1],
+        hasMore: querySnapshot.docs.length === limitCount
+      };
+    });
+  }
+
+  // Add document with validation
+  async addDocument(collectionName, data, schema = {}) {
+    // Validate data
+    const validatedData = this.validateData(data, schema);
+    
+    // Add timestamps
+    validatedData.createdAt = serverTimestamp();
+    validatedData.updatedAt = serverTimestamp();
+    
+    return this.withRetry(async () => {
+      const docRef = await addDoc(collection(firestore, collectionName), validatedData);
+      
+      // Invalidate cache
+      cacheUtils.invalidateCache(collectionName);
+      
+      logSecurityEvent('DOCUMENT_CREATED', {
+        collection: collectionName,
+        docId: docRef.id,
+        data: validatedData
+      });
+      
+      return { id: docRef.id, ...validatedData };
+    });
+  }
+
+  // Update document with validation
+  async updateDocument(collectionName, docId, data, schema = {}) {
+    // Validate data
+    const validatedData = this.validateData(data, schema);
+    
+    // Add update timestamp
+    validatedData.updatedAt = serverTimestamp();
+    
+    return this.withRetry(async () => {
+      const docRef = doc(firestore, collectionName, docId);
+      await updateDoc(docRef, validatedData);
+      
+      // Invalidate cache
+      cacheUtils.invalidateCache(collectionName);
+      cacheUtils.invalidateCache(docId);
+      
+      logSecurityEvent('DOCUMENT_UPDATED', {
+        collection: collectionName,
+        docId,
+        data: validatedData
+      });
+      
+      return { id: docId, ...validatedData };
+    });
+  }
+
+  // Delete document
+  async deleteDocument(collectionName, docId) {
+    return this.withRetry(async () => {
+      const docRef = doc(firestore, collectionName, docId);
+      await deleteDoc(docRef);
+      
+      // Invalidate cache
+      cacheUtils.invalidateCache(collectionName);
+      cacheUtils.invalidateCache(docId);
+      
+      logSecurityEvent('DOCUMENT_DELETED', {
+        collection: collectionName,
+        docId
+      });
+      
+      return { success: true };
+    });
+  }
+
+  // Batch operations
+  async batchOperation(operations) {
+    if (operations.length > DB_CONFIG.MAX_BATCH_SIZE) {
+      throw new Error(`Batch size exceeds limit of ${DB_CONFIG.MAX_BATCH_SIZE}`);
+    }
+    
+    return this.withRetry(async () => {
+      const batch = writeBatch(firestore);
+      
+      operations.forEach(({ type, collectionName, docId, data }) => {
+        const docRef = doc(firestore, collectionName, docId);
+        
+        switch (type) {
+          case 'set':
+            batch.set(docRef, data);
+            break;
+          case 'update':
+            batch.update(docRef, data);
+            break;
+          case 'delete':
+            batch.delete(docRef);
+            break;
+          default:
+            throw new Error(`Invalid operation type: ${type}`);
+        }
+      });
+      
+      await batch.commit();
+      
+      // Invalidate cache for all affected collections
+      const collections = [...new Set(operations.map(op => op.collectionName))];
+      collections.forEach(col => cacheUtils.invalidateCache(col));
+      
+      logSecurityEvent('BATCH_OPERATION', {
+        operations: operations.length,
+        collections
+      });
+      
+      return { success: true };
+    });
+  }
+
+  // Transaction operations
+  async transactionOperation(updateFunction) {
+    return this.withRetry(async () => {
+      const result = await runTransaction(firestore, updateFunction);
+      
+      logSecurityEvent('TRANSACTION_COMPLETED', {
+        result: typeof result
+      });
+      
+      return result;
+    });
+  }
+
+  // Real-time listeners with error handling
+  subscribeToDocument(collectionName, docId, callback) {
+    const docRef = doc(firestore, collectionName, docId);
+    
+    return onSnapshot(docRef, 
+      (doc) => {
+        if (doc.exists()) {
+          const data = { id: doc.id, ...doc.data() };
+          callback(null, data);
+        } else {
+          callback(new Error('Document not found'), null);
+        }
+      },
+      (error) => {
+        logSecurityEvent('REALTIME_ERROR', {
+          collection: collectionName,
+          docId,
+          error: error.message
+        });
+        callback(error, null);
+      }
+    );
+  }
+
+  // Subscribe to collection with query
+  subscribeToCollection(collectionName, options = {}, callback) {
+    const {
+      whereClauses = [],
+      orderByField = 'createdAt',
+      orderDirection = 'desc',
+      limitCount = DB_CONFIG.DEFAULT_LIMIT
+    } = options;
+
+    let q = collection(firestore, collectionName);
+    
+    whereClauses.forEach(({ field, operator, value }) => {
+      q = query(q, where(field, operator, value));
+    });
+    
+    q = query(q, orderBy(orderByField, orderDirection), limit(limitCount));
+    
+    return onSnapshot(q,
+      (querySnapshot) => {
+        const documents = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        callback(null, documents);
+      },
+      (error) => {
+        logSecurityEvent('REALTIME_ERROR', {
+          collection: collectionName,
+          error: error.message
+        });
+        callback(error, null);
+      }
+    );
+  }
+}
+
+// Schema definitions for validation
+export const schemas = {
+  user: {
+    name: { required: true, validator: (value) => validateField('name', value) },
+    email: { required: true, validator: (value) => validateField('email', value) },
+    role: { required: true, validator: (value) => ['student', 'teacher', 'admin'].includes(value) },
+    schoolId: { required: false },
+    createdAt: { required: false },
+    updatedAt: { required: false }
+  },
+  
+  club: {
+    name: { required: true, validator: (value) => validateField('clubName', value) },
+    description: { required: true, validator: (value) => validateField('description', value) },
+    teacherId: { required: true },
+    schoolId: { required: true },
+    joinCode: { required: true, validator: (value) => validateField('joinCode', value) },
+    capacity: { required: false, validator: (value) => !value || (value > 0 && value <= 1000) },
+    createdAt: { required: false },
+    updatedAt: { required: false }
+  },
+  
+  event: {
+    title: { required: true, validator: (value) => value && value.length >= 2 && value.length <= 100 },
+    description: { required: true, validator: (value) => validateField('description', value) },
+    date: { required: true, validator: (value) => validateField('date', value) },
+    time: { required: false, validator: (value) => validateField('time', value) },
+    clubId: { required: true },
+    location: { required: false },
+    capacity: { required: false, validator: (value) => !value || (value > 0 && value <= 1000) },
+    createdAt: { required: false },
+    updatedAt: { required: false }
+  },
+  
+  school: {
+    name: { required: true, validator: (value) => validateField('clubName', value) },
+    address: { required: false },
+    adminId: { required: true },
+    joinCode: { required: true, validator: (value) => validateField('joinCode', value) },
+    createdAt: { required: false },
+    updatedAt: { required: false }
+  }
+};
+
+// Create and export database manager instance
+const db = new DatabaseManager();
+export default db; 

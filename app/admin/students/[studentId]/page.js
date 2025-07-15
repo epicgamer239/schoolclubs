@@ -95,12 +95,14 @@ export default function StudentDetailPage() {
   if (loading) {
     return (
       <ProtectedRoute requiredRole="admin">
-        <div className="min-h-screen bg-[#0D1B2A] text-white p-6">
+        <div className="min-h-screen bg-background text-foreground">
           <DashboardTopBar title="Admin Dashboard" />
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-              <p>Loading student details...</p>
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading student details...</p>
+              </div>
             </div>
           </div>
         </div>
@@ -111,16 +113,18 @@ export default function StudentDetailPage() {
   if (!student) {
     return (
       <ProtectedRoute requiredRole="admin">
-        <div className="min-h-screen bg-[#0D1B2A] text-white p-6">
+        <div className="min-h-screen bg-background text-foreground">
           <DashboardTopBar title="Admin Dashboard" />
-          <div className="text-center py-8">
-            <p className="text-red-400">Student not found.</p>
-            <button
-              onClick={() => router.push("/admin/students")}
-              className="mt-4 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white"
-            >
-              Back to Student Look Up
-            </button>
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <div className="text-center py-8">
+              <p className="text-destructive">Student not found.</p>
+              <button
+                onClick={() => router.push("/admin/students")}
+                className="mt-4 btn-primary"
+              >
+                Back to Student Directory
+              </button>
+            </div>
           </div>
         </div>
       </ProtectedRoute>
@@ -129,113 +133,130 @@ export default function StudentDetailPage() {
 
   return (
     <ProtectedRoute requiredRole="admin">
-      <div className="min-h-screen bg-[#0D1B2A] text-white p-6">
+      <div className="min-h-screen bg-background text-foreground">
         <DashboardTopBar title="Admin Dashboard" />
         
-        {/* Back Button */}
-        <button
-          onClick={() => router.push("/admin/students")}
-          className="mb-6 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded text-white flex items-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to Student Look Up
-        </button>
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          {/* Back Button */}
+          <button
+            onClick={() => router.push("/admin/students")}
+            className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Student Directory
+          </button>
 
-        {/* Student Header */}
-        <div className="bg-white/10 rounded-xl p-6 mb-6 border border-white/10">
-          <div className="flex items-center space-x-6">
-            <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-2xl">
-              {(student.displayName || student.email || "?").charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold mb-2">
-                {student.displayName || "No Name"}
-              </h1>
-              <p className="text-gray-300 text-lg">{student.email}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Student Details Grid */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {/* Basic Information */}
-          <div className="bg-white/10 rounded-xl p-6 border border-white/10">
-            <h2 className="text-xl font-semibold mb-4">📋 Basic Information</h2>
-            <div className="space-y-3">
-              <div>
-                <span className="text-gray-400">Display Name:</span>
-                <p className="font-medium">{student.displayName || "Not provided"}</p>
+          {/* Student Header */}
+          <div className="card p-6 mb-8">
+            <div className="flex items-center space-x-6">
+              <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center text-white font-bold text-2xl">
+                {(student.displayName || student.email || "?").charAt(0).toUpperCase()}
               </div>
               <div>
-                <span className="text-gray-400">Email:</span>
-                <p className="font-medium">{student.email}</p>
-              </div>
-              <div>
-                <span className="text-gray-400">Role:</span>
-                <p className="font-medium capitalize">{student.role}</p>
-              </div>
-              <div>
-                <span className="text-gray-400">Account Created:</span>
-                <p className="font-medium">
-                  {formatDate(student.createdAt)}
-                </p>
+                <h1 className="text-3xl font-bold tracking-tight mb-2">
+                  {student.displayName || "No Name"}
+                </h1>
+                <p className="text-muted-foreground text-lg">{student.email}</p>
               </div>
             </div>
           </div>
 
-          {/* Club Statistics */}
-          <div className="bg-white/10 rounded-xl p-6 border border-white/10">
-            <h2 className="text-xl font-semibold mb-4">📊 Club Statistics</h2>
-            <div className="space-y-3">
-              <div>
-                <span className="text-gray-400">Total Clubs Joined:</span>
-                <p className="font-medium text-2xl">{clubs.length}</p>
-              </div>
-              <div>
-                <span className="text-gray-400">Clubs as Leader:</span>
-                <p className="font-medium">
-                  {clubs.filter(club => club.leaderId === student.id).length}
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-400">Active Member:</span>
-                <p className="font-medium text-green-400">
-                  {clubs.length > 0 ? "Yes" : "No"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Clubs Section */}
-        <div className="bg-white/10 rounded-xl p-6 border border-white/10">
-          <h2 className="text-xl font-semibold mb-4">📘 Clubs</h2>
-          
-          {clubs.length === 0 ? (
-            <p className="text-gray-400">This student hasn't joined any clubs yet.</p>
-          ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {clubs.map((club) => (
-                <div key={club.id} className="bg-white/5 p-4 rounded-lg border border-white/10">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-lg">{club.name}</h3>
-                    {club.leaderId === student.id && (
-                      <span className="bg-yellow-600 text-white px-2 py-1 rounded text-xs">
-                        Leader
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-gray-300 text-sm mb-3">{club.description}</p>
-                  <div className="text-xs text-gray-400">
-                    <p>Members: {club.studentIds?.length || 0}</p>
-                    <p>Created: {formatDate(club.createdAt)}</p>
-                  </div>
+          {/* Student Details Grid */}
+          <div className="grid md:grid-cols-2 gap-6 mb-8">
+            {/* Basic Information */}
+            <div className="card p-6">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Basic Information
+              </h2>
+              <div className="space-y-3">
+                <div>
+                  <span className="text-muted-foreground text-sm">Display Name:</span>
+                  <p className="font-medium">{student.displayName || "Not provided"}</p>
                 </div>
-              ))}
+                <div>
+                  <span className="text-muted-foreground text-sm">Email:</span>
+                  <p className="font-medium">{student.email}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-sm">Role:</span>
+                  <p className="font-medium capitalize">{student.role}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-sm">Account Created:</span>
+                  <p className="font-medium">
+                    {formatDate(student.createdAt)}
+                  </p>
+                </div>
+              </div>
             </div>
-          )}
+
+            {/* Club Statistics */}
+            <div className="card p-6">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Club Statistics
+              </h2>
+              <div className="space-y-3">
+                <div>
+                  <span className="text-muted-foreground text-sm">Total Clubs Joined:</span>
+                  <p className="font-medium text-2xl">{clubs.length}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-sm">Clubs as Leader:</span>
+                  <p className="font-medium">
+                    {clubs.filter(club => club.leaderId === student.id).length}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground text-sm">Active Member:</span>
+                  <p className="font-medium text-primary">
+                    {clubs.length > 0 ? "Yes" : "No"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Clubs Section */}
+          <div className="card p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              Clubs
+            </h2>
+            
+            {clubs.length === 0 ? (
+              <p className="text-muted-foreground">This student hasn't joined any clubs yet.</p>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {clubs.map((club) => (
+                  <div key={club.id} className="card p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-lg">{club.name}</h3>
+                      {club.leaderId === student.id && (
+                                                  <span className="badge-primary">
+                          Leader
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-muted-foreground text-sm mb-3">{club.description}</p>
+                    <div className="text-xs text-muted-foreground">
+                      <p>Members: {club.studentIds?.length || 0}</p>
+                      <p>Created: {formatDate(club.createdAt)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </ProtectedRoute>

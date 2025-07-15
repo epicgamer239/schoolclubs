@@ -36,6 +36,8 @@ export default function TeacherClubPage() {
     time: "",
     location: "",
   });
+  const [joiningEvent, setJoiningEvent] = useState(null);
+  const [leavingEvent, setLeavingEvent] = useState(null);
 
   useEffect(() => {
     const fetchClubData = async () => {
@@ -95,7 +97,37 @@ export default function TeacherClubPage() {
     e.preventDefault();
     if (!userData || !club) return;
 
+    // Validate date is not in the past
+    const selectedDate = new Date(newEvent.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (selectedDate < today) {
+      alert("Cannot create events in the past. Please select a future date.");
+      return;
+    }
+
     try {
+      // Check for duplicate events with same title, date, and time
+      const existingEventsQuery = query(
+        collection(firestore, "events"),
+        where("clubId", "==", clubId),
+        where("title", "==", newEvent.title.trim()),
+        where("date", "==", newEvent.date)
+      );
+      const existingEventsSnapshot = await getDocs(existingEventsQuery);
+      
+      // Check if an event with same title, date, and time exists
+      const duplicateEvent = existingEventsSnapshot.docs.find(doc => {
+        const eventData = doc.data();
+        return eventData.time === newEvent.time;
+      });
+      
+      if (duplicateEvent) {
+        alert("An event with this title, date, and time already exists. Please choose different details.");
+        return;
+      }
+
       const eventData = {
         ...newEvent,
         clubId,
@@ -136,7 +168,9 @@ export default function TeacherClubPage() {
   };
 
   const handleJoinEvent = async (eventId) => {
-    if (!userData) return;
+    if (!userData || joiningEvent) return;
+
+    setJoiningEvent(eventId);
 
     try {
       await updateDoc(doc(firestore, "events", eventId), {
@@ -151,11 +185,15 @@ export default function TeacherClubPage() {
       ));
     } catch (error) {
       console.error("Error joining event:", error);
+    } finally {
+      setJoiningEvent(null);
     }
   };
 
   const handleLeaveEvent = async (eventId) => {
-    if (!userData) return;
+    if (!userData || leavingEvent) return;
+
+    setLeavingEvent(eventId);
 
     try {
       await updateDoc(doc(firestore, "events", eventId), {
@@ -170,6 +208,8 @@ export default function TeacherClubPage() {
       ));
     } catch (error) {
       console.error("Error leaving event:", error);
+    } finally {
+      setLeavingEvent(null);
     }
   };
 
@@ -258,11 +298,11 @@ export default function TeacherClubPage() {
                     <p className="text-muted-foreground text-lg">{club.description}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="badge badge-primary">
+                    <span className="badge-primary">
                       {club.studentIds?.length || 0} members
                     </span>
                     {club.leaderId === userData?.uid && (
-                      <span className="badge badge-warning">👑 Leader</span>
+                      <span className="badge-warning">Leader</span>
                     )}
                   </div>
                 </div>
@@ -293,7 +333,7 @@ export default function TeacherClubPage() {
 
               {/* Members Section */}
               <div className="card p-6">
-                <h2 className="text-2xl font-bold mb-4">👥 Members</h2>
+                <h2 className="text-2xl font-bold mb-4">Members</h2>
                 {members.length === 0 ? (
                   <p className="text-muted-foreground">No members yet.</p>
                 ) : (
@@ -335,13 +375,13 @@ export default function TeacherClubPage() {
               {/* Upcoming Events */}
               <div className="card p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold">📅 Upcoming Events</h2>
+                  <h2 className="text-xl font-bold">Upcoming Events</h2>
                   {canManageEvents() && (
                     <button
                       onClick={() => setShowCreateEvent(true)}
                       className="btn-primary text-sm"
                     >
-                      ➕ Create Event
+                      Create Event
                     </button>
                   )}
                 </div>
@@ -361,18 +401,25 @@ export default function TeacherClubPage() {
                         <p className="text-sm text-muted-foreground mb-3">{event.description}</p>
                         <div className="space-y-1 mb-3">
                           <div className="flex items-center text-xs text-muted-foreground">
-                            <span className="mr-2">📅</span>
+                            <svg className="w-3 h-3 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
                             {formatDate(event.date)}
                           </div>
                           {event.time && (
                             <div className="flex items-center text-xs text-muted-foreground">
-                              <span className="mr-2">🕒</span>
+                              <svg className="w-3 h-3 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
                               {formatTime(event.time)}
                             </div>
                           )}
                           {event.location && (
                             <div className="flex items-center text-xs text-muted-foreground">
-                              <span className="mr-2">📍</span>
+                              <svg className="w-3 h-3 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
                               {event.location}
                             </div>
                           )}
@@ -382,13 +429,16 @@ export default function TeacherClubPage() {
                             ? handleLeaveEvent(event.id) 
                             : handleJoinEvent(event.id)
                           }
+                          disabled={joiningEvent === event.id || leavingEvent === event.id}
                           className={`w-full text-sm ${
                             isAttendingEvent(event) 
                               ? "btn-outline" 
                               : "btn-primary"
-                          }`}
+                          } ${(joiningEvent === event.id || leavingEvent === event.id) ? "opacity-50 cursor-not-allowed" : ""}`}
                         >
-                          {isAttendingEvent(event) ? "Leave Event" : "Join Event"}
+                          {joiningEvent === event.id ? "Joining..." : 
+                           leavingEvent === event.id ? "Leaving..." :
+                           isAttendingEvent(event) ? "Leave Event" : "Join Event"}
                         </button>
                       </div>
                     ))}

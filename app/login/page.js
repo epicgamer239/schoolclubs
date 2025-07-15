@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth, provider, firestore } from "@/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { useAuth } from "@/components/AuthContext";
 import Link from "next/link";
 import Image from "next/image";
@@ -41,7 +41,33 @@ export default function LoginPage() {
       // The redirect will be handled by the useEffect above
     } catch (error) {
       console.error("Login error:", error);
-      setError("Login failed: " + error.message);
+      
+      // Check if user exists in our database to provide better error messages
+      if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
+        try {
+          // Check if user exists in Firestore
+          const usersQuery = query(collection(firestore, "users"), where("email", "==", email));
+          const userSnapshot = await getDocs(usersQuery);
+          
+          if (!userSnapshot.empty) {
+            // User exists in Firestore but login failed
+            // This likely means they signed up with Google
+            setError("This email is associated with a Google account. Please use 'Continue with Google' to sign in.");
+          } else {
+            // User doesn't exist at all
+            setError("No account found with this email. Please sign up first.");
+          }
+        } catch (dbError) {
+          console.error("Error checking user in database:", dbError);
+          setError("Login failed. Please check your email and password.");
+        }
+      } else if (error.code === "auth/invalid-email") {
+        setError("Please enter a valid email address.");
+      } else if (error.code === "auth/too-many-requests") {
+        setError("Too many failed attempts. Please try again later.");
+      } else {
+        setError("Login failed: " + error.message);
+      }
     }
   };
 
@@ -57,6 +83,16 @@ export default function LoginPage() {
       const userDoc = await getDoc(doc(firestore, "users", user.uid));
       
       if (!userDoc.exists()) {
+        // Check if user with this email exists but different UID (email/password user)
+        const usersQuery = query(collection(firestore, "users"), where("email", "==", user.email));
+        const userSnapshot = await getDocs(usersQuery);
+        
+        if (!userSnapshot.empty) {
+          // User exists with email/password but trying to use Google
+          setError("An account with this email already exists using email/password. Please use your password to sign in.");
+          return;
+        }
+        
         // User doesn't exist, redirect to signup
         console.log("User doesn't exist, redirecting to signup");
         router.push("/signup");
@@ -88,14 +124,20 @@ export default function LoginPage() {
       // The redirect will be handled by the useEffect above
     } catch (error) {
       console.error("Google login error:", error);
-      setError("Google login error: " + error.message);
+      if (error.code === "auth/popup-closed-by-user") {
+        setError("Sign in was cancelled. Please try again.");
+      } else if (error.code === "auth/popup-blocked") {
+        setError("Pop-up was blocked. Please allow pop-ups for this site and try again.");
+      } else {
+        setError("Google login error: " + error.message);
+      }
     }
   };
 
   // Show loading while checking auth state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mx-auto mb-4"></div>
           <p className="text-muted-foreground font-medium">Loading...</p>
@@ -110,7 +152,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted flex items-center justify-center p-6">
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
@@ -121,10 +163,10 @@ export default function LoginPage() {
                 alt="StudyHub Logo"
                 width={40}
                 height={40}
-                className="w-10 h-10 group-hover:scale-110 transition-transform duration-200"
+                className="w-10 h-10 transition-transform duration-200 group-hover:scale-110"
               />
             </div>
-            <span className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
+            <span className="text-2xl font-bold text-foreground">
               StudyHub
             </span>
           </Link>
@@ -133,9 +175,9 @@ export default function LoginPage() {
         </div>
 
         {/* Login Form */}
-        <div className="card p-8 shadow-2xl border border-border/50">
+        <div className="card-elevated p-8">
           {error && (
-            <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl">
+            <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
               <p className="text-destructive text-sm font-medium">{error}</p>
             </div>
           )}
@@ -171,7 +213,7 @@ export default function LoginPage() {
               />
             </div>
 
-            <button type="submit" className="btn-primary w-full text-lg py-4">
+            <button type="submit" className="btn-primary w-full text-base py-4">
               Sign In
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -181,7 +223,7 @@ export default function LoginPage() {
 
           <div className="relative my-8">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border/50"></div>
+              <div className="w-full border-t border-border"></div>
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="bg-background px-4 text-muted-foreground font-medium">Or continue with</span>
@@ -191,7 +233,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={handleGoogleLogin}
-            className="w-full btn-outline flex items-center justify-center gap-3 py-4 text-lg"
+            className="w-full btn-outline flex items-center justify-center gap-3 py-4 text-base"
           >
             <img
               src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"

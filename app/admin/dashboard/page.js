@@ -80,8 +80,6 @@ export default function AdminDashboard() {
           pendingSchoolRequests: schoolRequestsSnap.size
         });
 
-        // Removed top clubs functionality
-
         // Get recent activity (recently created clubs)
         const recentClubs = clubs
           .sort((a, b) => {
@@ -129,10 +127,12 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <ProtectedRoute requiredRole="admin">
-        <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
+        <div className="min-h-screen bg-background">
           <DashboardTopBar title="Admin Dashboard" />
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+          <div className="container">
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+            </div>
           </div>
         </div>
       </ProtectedRoute>
@@ -142,13 +142,19 @@ export default function AdminDashboard() {
   if (!school) {
     return (
       <ProtectedRoute requiredRole="admin">
-        <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
+        <div className="min-h-screen bg-background">
           <DashboardTopBar title="Admin Dashboard" />
-          <div className="flex justify-center items-center h-64">
-            <div className="text-center">
-              <div className="text-6xl mb-4">⚠️</div>
-              <h2 className="text-xl font-semibold mb-2">School Not Found</h2>
-              <p className="text-muted-foreground">There was an issue loading your school data.</p>
+          <div className="container">
+            <div className="flex justify-center items-center h-64">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-semibold mb-2">School Not Found</h2>
+                <p className="text-muted-foreground">There was an issue loading your school data.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -158,15 +164,15 @@ export default function AdminDashboard() {
 
   return (
     <ProtectedRoute requiredRole="admin">
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted text-foreground p-6">
+      <div className="min-h-screen bg-background">
         <DashboardTopBar title="Admin Dashboard" />
         
-        <div className="max-w-7xl mx-auto">
+        <div className="container">
           {/* Header Section */}
           <div className="mb-8">
             <h1 className="text-4xl font-bold mb-2">Admin Dashboard</h1>
             <div className="flex items-center space-x-4 text-muted-foreground">
-              <span>🏫 {school.name}</span>
+              <span className="font-medium">{school.name}</span>
               <span>•</span>
               <div className="flex items-center space-x-4">
                 <span>Student Code: <code className="bg-muted px-3 py-1 rounded-lg text-sm font-mono border border-border">{school.studentJoinCode}</code></span>
@@ -177,7 +183,7 @@ export default function AdminDashboard() {
             {/* School Details */}
             {school.address && (
               <div className="mt-6 card p-6">
-                <h3 className="text-lg font-semibold mb-4">🏫 School Information</h3>
+                <h3 className="text-lg font-semibold mb-4">School Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
                   <div>
                     <span className="text-muted-foreground font-medium">Address:</span>
@@ -186,10 +192,10 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <span className="text-muted-foreground font-medium">Contact:</span>
-                    {school.phone && <p className="text-foreground font-medium">📞 {school.phone}</p>}
+                    {school.phone && <p className="text-foreground font-medium">{school.phone}</p>}
                     {school.website && (
                       <p className="text-foreground font-medium">
-                        🌐 <a href={school.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors">
+                        <a href={school.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors">
                           {school.website}
                         </a>
                       </p>
@@ -212,98 +218,88 @@ export default function AdminDashboard() {
             )}
           </div>
 
-          {/* Key Metrics Cards */}
+          {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="card p-6 bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+            <div 
+              className="card p-6 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+              onClick={() => router.push("/admin/students")}
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-primary text-sm font-semibold">Total Students</p>
+                  <p className="text-sm font-medium text-muted-foreground">Total Students</p>
                   <p className="text-3xl font-bold text-foreground">{stats.students}</p>
                 </div>
-                <div className="text-4xl">👥</div>
-              </div>
-              <div className="mt-4">
-                <div className="flex items-center text-sm">
-                  <span className="text-primary/80">Active in clubs: {stats.totalMemberships}</span>
+                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  </svg>
                 </div>
               </div>
             </div>
 
-            <div className="card p-6 bg-gradient-to-br from-success/10 to-success/5 border-success/20">
+            <div 
+              className="card p-6 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+              onClick={() => router.push("/admin/teachers")}
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-success text-sm font-semibold">Total Teachers</p>
+                  <p className="text-sm font-medium text-muted-foreground">Total Teachers</p>
                   <p className="text-3xl font-bold text-foreground">{stats.teachers}</p>
                 </div>
-                <div className="text-4xl">👨‍🏫</div>
-              </div>
-              <div className="mt-4">
-                <div className="flex items-center text-sm">
-                  <span className="text-success/80">Managing clubs</span>
+                <div className="w-12 h-12 bg-secondary/10 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
                 </div>
               </div>
             </div>
 
-            <div className="card p-6 bg-gradient-to-br from-secondary/10 to-secondary/5 border-secondary/20">
+            <div 
+              className="card p-6 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+              onClick={() => router.push("/admin/clubs")}
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-secondary text-sm font-semibold">Total Clubs</p>
+                  <p className="text-sm font-medium text-muted-foreground">Total Clubs</p>
                   <p className="text-3xl font-bold text-foreground">{stats.clubs}</p>
                 </div>
-                <div className="text-4xl">📚</div>
-              </div>
-              <div className="mt-4">
-                <div className="flex items-center text-sm">
-                  <span className="text-secondary/80">{stats.activeClubs} active ({getActiveClubsPercentage()}%)</span>
+                <div className="w-12 h-12 bg-accent/10 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-accent-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
                 </div>
               </div>
             </div>
 
-            <div className="card p-6 bg-gradient-to-br from-warning/10 to-warning/5 border-warning/20">
+            <div className="card p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-warning text-sm font-semibold">Pending Requests</p>
-                  <p className="text-3xl font-bold text-foreground">{stats.pendingRequests}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Total Memberships</p>
+                  <p className="text-3xl font-bold text-foreground">{stats.totalMemberships}</p>
                 </div>
-                <div className="text-4xl">📝</div>
-              </div>
-              <div className="mt-4">
-                <div className="flex items-center text-sm">
-                  <span className="text-warning/80">Awaiting approval</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="card p-6 bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-500 text-sm font-semibold">School Join Requests</p>
-                  <p className="text-3xl font-bold text-foreground">{stats.pendingSchoolRequests}</p>
-                </div>
-                <div className="text-4xl">🏫</div>
-              </div>
-              <div className="mt-4">
-                <div className="flex items-center text-sm">
-                  <span className="text-blue-500/80">Students & teachers waiting to join</span>
+                <div className="w-12 h-12 bg-success/10 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Engagement Metrics */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Engagement Overview */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">📊 Engagement Overview</h3>
+              <h3 className="text-lg font-semibold mb-4">Engagement Overview</h3>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-muted-foreground">Student Participation</span>
                     <span className="text-foreground font-semibold">{getMembershipPercentage()}%</span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2">
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
                     <div 
                       className="bg-primary h-2 rounded-full transition-all duration-500" 
-                      style={{ width: `${getMembershipPercentage()}%` }}
+                      style={{ width: `${Math.min(getMembershipPercentage(), 100)}%` }}
                     ></div>
                   </div>
                 </div>
@@ -312,10 +308,10 @@ export default function AdminDashboard() {
                     <span className="text-muted-foreground">Active Clubs</span>
                     <span className="text-foreground font-semibold">{getActiveClubsPercentage()}%</span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2">
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
                     <div 
                       className="bg-success h-2 rounded-full transition-all duration-500" 
-                      style={{ width: `${getActiveClubsPercentage()}%` }}
+                      style={{ width: `${Math.min(getActiveClubsPercentage(), 100)}%` }}
                     ></div>
                   </div>
                 </div>
@@ -328,125 +324,95 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-
-
-            {/* Recent Activity */}
             <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">🕒 Recent Activity</h3>
-              <div className="space-y-3">
+              <h3 className="text-lg font-semibold mb-4">Pending Requests</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium">Club Join Requests</p>
+                      <p className="text-sm text-muted-foreground">{stats.pendingRequests} pending</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => router.push("/admin/join-requests")}
+                    className="btn-outline text-sm"
+                  >
+                    Review
+                  </button>
+                </div>
+                
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-secondary/10 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium">School Join Requests</p>
+                      <p className="text-sm text-muted-foreground">{stats.pendingSchoolRequests} pending</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => router.push("/admin/school-join-requests")}
+                    className="btn-outline text-sm"
+                  >
+                    Review
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="card p-6">
+              <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
+              <div className="space-y-4">
                 {recentActivity.length > 0 ? (
                   recentActivity.map((club) => (
-                    <div key={club.id} className="flex items-center space-x-3 p-3 bg-muted/50 rounded-lg border border-border/50">
-                      <div className="w-2 h-2 bg-success rounded-full"></div>
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground">{club.name}</p>
-                        <p className="text-sm text-muted-foreground">Created {formatDate(club.createdAt)}</p>
+                    <div key={club.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div>
+                        <p className="font-medium">{club.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Created {formatDate(club.createdAt)} • {club.studentIds?.length || 0} members
+                        </p>
                       </div>
+                      <button 
+                        onClick={() => router.push(`/admin/clubs/${club.id}`)}
+                        className="btn-ghost text-sm"
+                      >
+                        View
+                      </button>
                     </div>
                   ))
                 ) : (
-                  <p className="text-muted-foreground text-center py-4">No recent activity</p>
+                  <p className="text-muted-foreground text-center py-8">No recent activity</p>
                 )}
               </div>
             </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="card p-6 mb-8">
-            <h3 className="text-lg font-semibold mb-4">⚡ Quick Actions</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <button
-                onClick={() => router.push("/admin/students")}
-                className="flex items-center space-x-3 p-4 bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-lg transition-all duration-200 group"
-              >
-                <div className="text-2xl group-hover:scale-110 transition-transform">👥</div>
-                <div className="text-left">
-                  <p className="font-medium text-foreground">Student Look Up</p>
-                  <p className="text-sm text-primary/80">Search & manage students</p>
-                </div>
-              </button>
-              
-              <button
-                onClick={() => router.push("/admin/clubs")}
-                className="flex items-center space-x-3 p-4 bg-success/10 hover:bg-success/20 border border-success/20 rounded-lg transition-all duration-200 group"
-              >
-                <div className="text-2xl group-hover:scale-110 transition-transform">📚</div>
-                <div className="text-left">
-                  <p className="font-medium text-foreground">Manage Clubs</p>
-                  <p className="text-sm text-success/80">View & edit all clubs</p>
-                </div>
-              </button>
-              
-              <button
-                onClick={() => router.push("/admin/school")}
-                className="flex items-center space-x-3 p-4 bg-secondary/10 hover:bg-secondary/20 border border-secondary/20 rounded-lg transition-all duration-200 group"
-              >
-                <div className="text-2xl group-hover:scale-110 transition-transform">🏫</div>
-                <div className="text-left">
-                  <p className="font-medium text-foreground">School Settings</p>
-                  <p className="text-sm text-secondary/80">Configure school options</p>
-                </div>
-              </button>
-              
-              <button
-                onClick={() => router.push("/admin/school-join-requests")}
-                className="flex items-center space-x-3 p-4 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-all duration-200 group"
-              >
-                <div className="text-2xl group-hover:scale-110 transition-transform">📋</div>
-                <div className="text-left">
-                  <p className="font-medium text-foreground">Join Requests</p>
-                  <p className="text-sm text-blue-500/80">Review school join requests</p>
-                </div>
-              </button>
-              
-              <button
-                onClick={() => router.push("/admin/clubs/create")}
-                className="flex items-center space-x-3 p-4 bg-warning/10 hover:bg-warning/20 border border-warning/20 rounded-lg transition-all duration-200 group"
-              >
-                <div className="text-2xl group-hover:scale-110 transition-transform">➕</div>
-                <div className="text-left">
-                  <p className="font-medium text-foreground">Create Club</p>
-                  <p className="text-sm text-warning/80">Add a new club</p>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Growth Metrics and Other Administrators */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">📈 Growth Metrics</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Student Growth</span>
-                  <span className="text-success font-semibold">+{stats.students} this period</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Club Growth</span>
-                  <span className="text-primary font-semibold">+{stats.clubs} this period</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Engagement Rate</span>
-                  <span className="text-secondary font-semibold">{getMembershipPercentage()}%</span>
-                </div>
-              </div>
-            </div>
 
             <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">👥 Other Administrators</h3>
+              <h3 className="text-lg font-semibold mb-4">Other Administrators</h3>
               <div className="space-y-3">
                 {otherAdmins.length > 0 ? (
                   otherAdmins.map((admin) => (
-                    <div key={admin.uid} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border border-border/50">
+                    <div key={admin.uid} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div>
-                        <p className="font-medium text-foreground">{admin.displayName || 'Unknown'}</p>
+                        <p className="font-medium">{admin.displayName || 'Unknown'}</p>
                         <p className="text-sm text-muted-foreground">{admin.email}</p>
                       </div>
-                      <span className="text-primary text-sm font-semibold">Admin</span>
+                      <span className="badge-primary">Admin</span>
                     </div>
                   ))
                 ) : (
-                  <p className="text-muted-foreground text-center py-4">You are the only administrator</p>
+                  <p className="text-muted-foreground text-center py-8">You are the only administrator</p>
                 )}
                 <div className="pt-2">
                   <button
