@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, firestore } from "@/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { secureLog, secureError } from "@/utils/logger";
+
 
 const AuthContext = createContext();
 
@@ -20,35 +20,35 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     // Add a timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
-      secureLog("Auth timeout reached, setting loading to false");
+      console.log("Auth timeout reached, setting loading to false");
       setLoading(false);
       setInitialized(true);
     }, 5000); // 5 second timeout
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      secureLog("Auth state changed:", firebaseUser ? "User logged in" : "No user");
+      console.log("Auth state changed:", firebaseUser ? "User logged in" : "No user");
       setUser(firebaseUser);
       
       if (firebaseUser) {
         try {
-          secureLog("Fetching user data for:", firebaseUser.uid);
+          console.log("Fetching user data for:", firebaseUser.uid);
           const userDoc = await getDoc(doc(firestore, "users", firebaseUser.uid));
           if (userDoc.exists()) {
             const userData = { ...userDoc.data(), uid: firebaseUser.uid };
-            secureLog("User data fetched:", userData);
+            console.log("User data fetched:", userData);
             
             // Sync photoURL from Firebase Auth if it's different
             if (firebaseUser.photoURL && userData.photoURL !== firebaseUser.photoURL) {
-              secureLog("Updating photoURL in Firestore");
-              secureLog("Old photoURL:", userData.photoURL);
-              secureLog("New photoURL:", firebaseUser.photoURL);
+              console.log("Updating photoURL in Firestore");
+              console.log("Old photoURL:", userData.photoURL);
+              console.log("New photoURL:", firebaseUser.photoURL);
               
               // Modify Google profile picture URL to be more reliable
               let modifiedPhotoURL = firebaseUser.photoURL;
               if (firebaseUser.photoURL.includes('lh3.googleusercontent.com')) {
                 // Remove size parameter and use a more reliable format
                 modifiedPhotoURL = firebaseUser.photoURL.replace(/=s\d+-c$/, '=s400-c');
-                secureLog("Modified photoURL:", modifiedPhotoURL);
+                console.log("Modified photoURL:", modifiedPhotoURL);
               }
               
               try {
@@ -56,12 +56,12 @@ export function AuthProvider({ children }) {
                   photoURL: modifiedPhotoURL
                 });
                 userData.photoURL = modifiedPhotoURL;
-                secureLog("PhotoURL updated successfully");
+                console.log("PhotoURL updated successfully");
               } catch (error) {
-                secureError("Error updating photoURL:", error);
+                console.error("Error updating photoURL:", error);
               }
             } else {
-              secureLog("PhotoURL sync check:", {
+              console.log("PhotoURL sync check:", {
                 firebasePhotoURL: firebaseUser.photoURL,
                 firestorePhotoURL: userData.photoURL,
                 needsUpdate: firebaseUser.photoURL && userData.photoURL !== firebaseUser.photoURL
@@ -70,15 +70,15 @@ export function AuthProvider({ children }) {
             
             setUserData(userData);
           } else {
-            secureLog("User document does not exist");
+            console.log("User document does not exist");
             setUserData(null);
           }
         } catch (error) {
-          secureError("Error fetching user data:", error);
+          console.error("Error fetching user data:", error);
           setUserData(null);
         }
       } else {
-        secureLog("No user logged in");
+        console.log("No user logged in");
         setUserData(null);
       }
       
