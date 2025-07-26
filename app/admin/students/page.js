@@ -1,50 +1,50 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { firestore } from "@/firebase";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-} from "firebase/firestore";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
 import DashboardTopBar from "../../../components/DashboardTopBar";
+import db from "../../../utils/database";
+import { cacheUtils, globalCache } from "../../../utils/cache";
 
-export default function StudentLookupPage() {
+export default function AdminStudentsPage() {
   const [students, setStudents] = useState([]);
-  const [filteredStudents, setFilteredStudents] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const { userData, loading: authLoading } = useAuth();
+  const { userData } = useAuth();
 
   useEffect(() => {
     const fetchStudents = async () => {
       if (!userData?.schoolId) return;
 
       try {
-        const q = query(
-          collection(firestore, "users"),
-          where("schoolId", "==", userData.schoolId),
-          where("role", "==", "student")
-        );
-        const querySnapshot = await getDocs(q);
-        const studentList = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        // Check cache for students first
+        const cacheKey = `students:${userData.schoolId}`;
+        const cachedStudents = globalCache.get(cacheKey);
+        
+        if (cachedStudents) {
+          setStudents(cachedStudents);
+          setLoading(false);
+          return;
+        }
 
-        // Sort students alphabetically by name (displayName or email)
-        const sortedStudents = studentList.sort((a, b) => {
-          const nameA = (a.displayName || a.email || "").toLowerCase();
-          const nameB = (b.displayName || b.email || "").toLowerCase();
-          return nameA.localeCompare(nameB);
+        // Fetch students with caching
+        const studentsSnap = await db.getDocuments("users", {
+          whereClauses: [
+            { field: "schoolId", operator: "==", value: userData.schoolId },
+            { field: "role", operator: "==", value: "student" }
+          ],
+          useCache: true
         });
 
-        setStudents(sortedStudents);
-        setFilteredStudents(sortedStudents);
+        const studentsList = studentsSnap.documents;
+        setStudents(studentsList);
+        
+        // Cache the students data
+        globalCache.set(cacheKey, studentsList, 300); // 5 minutes
+        
         setLoading(false);
       } catch (error) {
         console.error("Error fetching students:", error);
@@ -52,24 +52,29 @@ export default function StudentLookupPage() {
       }
     };
 
-    if (!authLoading && userData) {
-      fetchStudents();
-    }
-  }, [userData, authLoading]);
+    fetchStudents();
+  }, [userData]);
 
   useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredStudents(students);
-    } else {
-      const filtered = students.filter((student) => {
+    let filtered = students;
+
+    // Apply text search
+    if (searchTerm.trim() !== "") {
+      filtered = filtered.filter((student) => {
         const searchLower = searchTerm.toLowerCase();
         const name = (student.displayName || student.email || "").toLowerCase();
         const email = (student.email || "").toLowerCase();
         return name.includes(searchLower) || email.includes(searchLower);
       });
-      setFilteredStudents(filtered);
     }
-  }, [searchTerm, students]);
+
+    // Apply role filter (though for students page this will always be "student")
+    if (filterRole !== "all") {
+      filtered = filtered.filter((student) => student.role === filterRole);
+    }
+
+    setFilteredStudents(filtered);
+  }, [searchTerm, filterRole, students]);
 
   const handleStudentClick = (studentId) => {
     router.push(`/admin/students/${studentId}`);
@@ -98,70 +103,98 @@ export default function StudentLookupPage() {
       <div className="min-h-screen bg-background text-foreground">
         <DashboardTopBar title="Admin Dashboard" />
         
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* Back Button */}
-          <button
-            onClick={() => router.push("/admin/dashboard")}
-            className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Dashboard
-          </button>
-
+        <div className="container">
+          {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold tracking-tight">Student Directory</h1>
-            <p className="text-muted-foreground mt-2">View and manage all students in your school</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-4xl font-bold mb-2">Manage Students</h1>
+                <p className="text-muted-foreground">View and manage all students in your school</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => router.back()}
+                  className="btn-outline"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="mb-6">
-            <input
-              type="text"
-              placeholder="Search students by name or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input max-w-md"
-            />
+          {/* Filters and Search */}
+          <div className="card p-6 mb-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <label htmlFor="search" className="block text-sm font-semibold mb-2 text-foreground">
+                  Search Students
+                </label>
+                <input
+                  id="search"
+                  type="text"
+                  placeholder="Search by name or email..."
+                  className="input"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="md:w-48">
+                <label htmlFor="filter" className="block text-sm font-semibold mb-2 text-foreground">
+                  Filter by Role
+                </label>
+                <select
+                  id="filter"
+                  className="input"
+                  value={filterRole}
+                  onChange={(e) => setFilterRole(e.target.value)}
+                >
+                  <option value="all">All Students</option>
+                  <option value="student">Students</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          {/* Student Count */}
-          <p className="text-muted-foreground mb-6 font-medium">
-            {filteredStudents.length} student{filteredStudents.length !== 1 ? 's' : ''} found
-          </p>
-
-          {/* Student List */}
-          <div className="grid gap-4">
+          {/* Students List */}
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold">Students ({filteredStudents.length})</h2>
+            </div>
             {filteredStudents.length === 0 ? (
-              <div className="card p-12 text-center">
-                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-semibold mb-2">No Students Found</h3>
+                <h3 className="text-lg font-semibold mb-2">No Students Found</h3>
                 <p className="text-muted-foreground">
-                  {searchTerm ? 'No students found matching your search.' : 'No students have joined yet.'}
+                  {searchTerm || filterRole !== "all" 
+                    ? "Try adjusting your search or filters"
+                    : "No students have joined your school yet"
+                  }
                 </p>
               </div>
             ) : (
-              filteredStudents.map((student) => (
-                <div
-                  key={student.id}
-                  onClick={() => handleStudentClick(student.id)}
-                  className="card p-6 cursor-pointer hover:shadow-lg transition-all duration-200 group"
-                >
-                  <div className="flex items-center justify-between">
+              <div className="space-y-4">
+                {filteredStudents.map((student) => (
+                  <div
+                    key={student.id}
+                    onClick={() => handleStudentClick(student.id)}
+                    className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border/50 cursor-pointer hover:shadow-lg transition-all duration-200 group"
+                  >
                     <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white font-bold text-lg group-hover:scale-110 transition-transform">
-                        {(student.displayName || student.email || "?").charAt(0).toUpperCase()}
+                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-foreground">
-                          {student.displayName || "No Name"}
-                        </h3>
-                        <p className="text-muted-foreground text-sm">{student.email}</p>
+                        <h3 className="font-semibold text-foreground">{student.displayName || "Unknown"}</h3>
+                        <p className="text-sm text-muted-foreground">{student.email}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="badge-primary">
                             {student.clubIds?.length || 0} club{(student.clubIds?.length || 0) !== 1 ? 's' : ''} joined
@@ -169,14 +202,15 @@ export default function StudentLookupPage() {
                         </div>
                       </div>
                     </div>
+                    
                     <div className="text-muted-foreground group-hover:text-primary transition-colors">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         </div>

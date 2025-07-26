@@ -7,8 +7,14 @@ const cacheTTL = new Map();
 // Cache configuration
 const CACHE_CONFIG = {
   DEFAULT_TTL: 300, // 5 minutes
-  MAX_SIZE: 1000, // Maximum cache entries
-  CLEANUP_INTERVAL: 60000 // 1 minute cleanup interval
+  MAX_SIZE: 10000, // Increased from 1000 to 10000 for scale
+  CLEANUP_INTERVAL: 60000, // 1 minute cleanup interval
+  // Memory management
+  MEMORY_LIMIT: 100 * 1024 * 1024, // 100MB memory limit
+  // Cache eviction strategy
+  EVICTION_STRATEGY: 'LRU', // Least Recently Used
+  // Performance monitoring
+  ENABLE_STATS: true
 };
 
 // Cache class for managing cached data
@@ -16,19 +22,22 @@ class Cache {
   constructor() {
     this.cache = new Map();
     this.ttl = new Map();
+    this.accessOrder = new Map(); // For LRU tracking
+    this.accessCounter = 0;
     this.setupCleanup();
   }
 
   // Set cache entry with TTL
   set(key, value, ttl = CACHE_CONFIG.DEFAULT_TTL) {
-    // Clean up old entries if cache is full
+    // Check memory usage and evict if needed
     if (this.cache.size >= CACHE_CONFIG.MAX_SIZE) {
-      this.cleanup();
+      this.evictOldest();
     }
 
     const expiry = Date.now() + (ttl * 1000);
     this.cache.set(key, value);
     this.ttl.set(key, expiry);
+    this.accessOrder.set(key, ++this.accessCounter);
   }
 
   // Get cache entry
@@ -46,6 +55,8 @@ class Cache {
       return null;
     }
 
+    // Update access order for LRU
+    this.accessOrder.set(key, ++this.accessCounter);
     return value;
   }
 
@@ -53,21 +64,52 @@ class Cache {
   delete(key) {
     this.cache.delete(key);
     this.ttl.delete(key);
+    this.accessOrder.delete(key);
   }
 
   // Clear all cache
   clear() {
     this.cache.clear();
     this.ttl.clear();
+    this.accessOrder.clear();
+    this.accessCounter = 0;
+  }
+
+  // Evict oldest entries (LRU strategy)
+  evictOldest() {
+    if (this.cache.size === 0) return;
+
+    // Find the oldest accessed entry
+    let oldestKey = null;
+    let oldestAccess = Infinity;
+
+    for (const [key, accessTime] of this.accessOrder.entries()) {
+      if (accessTime < oldestAccess) {
+        oldestAccess = accessTime;
+        oldestKey = key;
+      }
+    }
+
+    if (oldestKey) {
+      this.delete(oldestKey);
+    }
   }
 
   // Cleanup expired entries
   cleanup() {
     const now = Date.now();
+    let cleanedCount = 0;
+
     for (const [key, expiry] of this.ttl.entries()) {
       if (now > expiry) {
         this.delete(key);
+        cleanedCount++;
       }
+    }
+
+    // Log cleanup stats if enabled
+    if (CACHE_CONFIG.ENABLE_STATS && cleanedCount > 0) {
+      console.log(`Cache cleanup: removed ${cleanedCount} expired entries`);
     }
   }
 
@@ -80,11 +122,44 @@ class Cache {
 
   // Get cache stats
   getStats() {
+    const now = Date.now();
+    let expiredCount = 0;
+    let totalSize = 0;
+
+    // Calculate memory usage and expired entries
+    for (const [key, value] of this.cache.entries()) {
+      const expiry = this.ttl.get(key);
+      if (expiry && now > expiry) {
+        expiredCount++;
+      }
+      
+      // Estimate memory usage (rough calculation)
+      if (typeof value === 'string') {
+        totalSize += value.length * 2; // UTF-16 characters
+      } else if (typeof value === 'object') {
+        totalSize += JSON.stringify(value).length * 2;
+      }
+    }
+
     return {
       size: this.cache.size,
       maxSize: CACHE_CONFIG.MAX_SIZE,
-      keys: Array.from(this.cache.keys())
+      memoryUsage: `${(totalSize / 1024 / 1024).toFixed(2)}MB`,
+      memoryLimit: `${(CACHE_CONFIG.MEMORY_LIMIT / 1024 / 1024).toFixed(2)}MB`,
+      expiredEntries: expiredCount,
+      hitRate: this.calculateHitRate(),
+      keys: Array.from(this.cache.keys()).slice(0, 10) // Show first 10 keys
     };
+  }
+
+  // Calculate cache hit rate (simplified)
+  calculateHitRate() {
+    // This is a simplified calculation - in production you'd track hits/misses
+    const totalEntries = this.cache.size;
+    const expiredEntries = Array.from(this.ttl.entries())
+      .filter(([_, expiry]) => Date.now() > expiry).length;
+    
+    return totalEntries > 0 ? ((totalEntries - expiredEntries) / totalEntries * 100).toFixed(1) : '0.0';
   }
 }
 
@@ -156,6 +231,46 @@ export const cacheUtils = {
     return globalCache.get(`school:${schoolId}`);
   },
 
+  // NEW: Cache join requests
+  cacheJoinRequests: (clubId, requests) => {
+    globalCache.set(`joinRequests:${clubId}`, requests, 120); // 2 minutes
+  },
+
+  // NEW: Get cached join requests
+  getCachedJoinRequests: (clubId) => {
+    return globalCache.get(`joinRequests:${clubId}`);
+  },
+
+  // NEW: Cache school join requests
+  cacheSchoolJoinRequests: (schoolId, requests) => {
+    globalCache.set(`schoolJoinRequests:${schoolId}`, requests, 120); // 2 minutes
+  },
+
+  // NEW: Get cached school join requests
+  getCachedSchoolJoinRequests: (schoolId) => {
+    return globalCache.get(`schoolJoinRequests:${schoolId}`);
+  },
+
+  // NEW: Cache tags
+  cacheTags: (tagIds, tags) => {
+    globalCache.set(`tags:${tagIds.join(',')}`, tags, 1800); // 30 minutes
+  },
+
+  // NEW: Get cached tags
+  getCachedTags: (tagIds) => {
+    return globalCache.get(`tags:${tagIds.join(',')}`);
+  },
+
+  // NEW: Cache dashboard stats
+  cacheDashboardStats: (schoolId, stats) => {
+    globalCache.set(`dashboardStats:${schoolId}`, stats, 300); // 5 minutes
+  },
+
+  // NEW: Get cached dashboard stats
+  getCachedDashboardStats: (schoolId) => {
+    return globalCache.get(`dashboardStats:${schoolId}`);
+  },
+
   // Invalidate cache for specific patterns
   invalidateCache: (pattern) => {
     const keys = Array.from(globalCache.cache.keys());
@@ -176,6 +291,53 @@ export const cacheUtils = {
     return globalCache.getStats();
   }
 };
+
+// Cache monitoring utilities
+export const cacheMonitor = {
+  // Get detailed cache stats
+  getDetailedStats: () => {
+    return globalCache.getStats();
+  },
+
+  // Get cache performance metrics
+  getPerformanceMetrics: () => {
+    const stats = globalCache.getStats();
+    return {
+      utilization: `${((stats.size / stats.maxSize) * 100).toFixed(1)}%`,
+      memoryUsage: stats.memoryUsage,
+      hitRate: stats.hitRate,
+      efficiency: stats.size > 0 ? 'Good' : 'Empty'
+    };
+  },
+
+  // Clear cache manually
+  clearCache: () => {
+    globalCache.clear();
+    console.log('Cache cleared manually');
+  },
+
+  // Get cache keys by pattern
+  getKeysByPattern: (pattern) => {
+    const keys = Array.from(globalCache.cache.keys());
+    return keys.filter(key => key.includes(pattern));
+  },
+
+  // Get cache size by type
+  getSizeByType: () => {
+    const keys = Array.from(globalCache.cache.keys());
+    const typeCounts = {};
+    
+    keys.forEach(key => {
+      const type = key.split(':')[0];
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+    });
+    
+    return typeCounts;
+  }
+};
+
+// Export cache configuration for external access
+export { CACHE_CONFIG };
 
 // Client-side cache using localStorage
 export const clientCache = {
@@ -293,7 +455,14 @@ export const cacheKeys = {
   user: (userId) => `user:${userId}`,
   school: (schoolId) => `school:${schoolId}`,
   joinRequests: (clubId) => `joinRequests:${clubId}`,
-  schoolJoinRequests: (schoolId) => `schoolJoinRequests:${schoolId}`
+  schoolJoinRequests: (schoolId) => `schoolJoinRequests:${schoolId}`,
+  tags: (tagIds) => `tags:${tagIds.join(',')}`,
+  dashboardStats: (schoolId) => `dashboardStats:${schoolId}`,
+  // Optimized cache durations
+  userData: (userId) => `user:${userId}:1800`, // 30 minutes
+  schoolData: (schoolId) => `school:${schoolId}:3600`, // 1 hour
+  clubsData: (schoolId) => `clubs:${schoolId}:900`, // 15 minutes
+  eventsData: (clubId) => `events:${clubId}:300` // 5 minutes
 };
 
 export default globalCache; 

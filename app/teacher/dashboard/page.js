@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc } from "firebase/firestore";
 import { firestore } from "@/firebase";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
 import DashboardTopBar from "../../../components/DashboardTopBar";
+import db from "../../../utils/database";
+import { cacheUtils } from "../../../utils/cache";
 
 export default function TeacherDashboard() {
   const [school, setSchool] = useState(null);
@@ -16,10 +17,16 @@ export default function TeacherDashboard() {
     const fetchSchoolData = async () => {
       if (!userData?.schoolId) return;
 
-      const schoolDoc = await getDoc(doc(firestore, "schools", userData.schoolId));
-      if (schoolDoc.exists()) {
-        setSchool(schoolDoc.data());
+      // Check cache for school data first
+      const cachedSchool = cacheUtils.getCachedSchool(userData.schoolId);
+      if (cachedSchool) {
+        setSchool(cachedSchool);
+        return;
       }
+
+      // Fetch school data with caching
+      const schoolData = await db.getDocument("schools", userData.schoolId, true);
+      setSchool(schoolData);
     };
 
     if (!loading && userData) {

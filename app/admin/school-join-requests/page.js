@@ -15,6 +15,8 @@ import {
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
 import DashboardTopBar from "../../../components/DashboardTopBar";
+import Modal from "../../../components/Modal";
+import { useModal } from "../../../utils/useModal";
 
 export default function SchoolJoinRequestsPage() {
   const [joinRequests, setJoinRequests] = useState([]);
@@ -22,6 +24,7 @@ export default function SchoolJoinRequestsPage() {
   const [processingRequest, setProcessingRequest] = useState(null);
   const router = useRouter();
   const { userData, loading: authLoading } = useAuth();
+  const { modalState, showConfirm, showAlert, closeModal, handleConfirm } = useModal();
 
   useEffect(() => {
     const fetchJoinRequests = async () => {
@@ -77,83 +80,78 @@ export default function SchoolJoinRequestsPage() {
   }, [userData, authLoading]);
 
   const handleApprove = async (requestId, request) => {
-    if (!confirm(`Approve ${request.studentName}'s request to join the school as a ${request.requestedRole || 'student'}?`)) {
-      return;
-    }
+    showConfirm(
+      "Approve Request",
+      `Approve ${request.studentName}'s request to join the school as a ${request.requestedRole || 'student'}?`,
+      async () => {
+        setProcessingRequest(requestId);
 
-    setProcessingRequest(requestId);
+        try {
+          // Update the user's schoolId and role fields
+          const updateData = {
+            schoolId: request.schoolId,
+          };
+          
+          // If it's a teacher request, also update the role
+          if (request.requestedRole === "teacher" || request.type === "teacher") {
+            updateData.role = "teacher";
+          } else {
+            updateData.role = "student";
+          }
 
-    try {
-      // Update the user's schoolId and role fields
-      const updateData = {
-        schoolId: request.schoolId,
-      };
-      
-      // If it's a teacher request, also update the role
-      if (request.requestedRole === "teacher" || request.type === "teacher") {
-        updateData.role = "teacher";
-      } else {
-        updateData.role = "student";
+          await updateDoc(doc(firestore, "users", request.studentId), updateData);
+
+          // Update request status
+          await updateDoc(doc(firestore, "schoolJoinRequests", requestId), {
+            status: "approved",
+            processedAt: new Date(),
+            processedBy: userData.uid,
+          });
+
+          // Remove from local state
+          setJoinRequests(prev => prev.filter(req => req.id !== requestId));
+
+          showAlert("Success", `${request.studentName} has been approved to join the school as a ${request.requestedRole || 'student'}!`);
+        } catch (error) {
+          console.error("Error approving request:", error);
+          showAlert("Error", "Failed to approve request. Please try again.");
+        } finally {
+          setProcessingRequest(null);
+        }
       }
-
-      await updateDoc(doc(firestore, "users", request.studentId), updateData);
-
-      // Update request status
-      await updateDoc(doc(firestore, "schoolJoinRequests", requestId), {
-        status: "approved",
-        processedAt: new Date(),
-        processedBy: userData.uid,
-      });
-
-      // Remove from local state
-      setJoinRequests(prev => prev.filter(req => req.id !== requestId));
-
-      alert(`${request.studentName} has been approved to join the school as a ${request.requestedRole || 'student'}!`);
-    } catch (error) {
-      console.error("Error approving request:", error);
-      alert("Failed to approve request. Please try again.");
-    } finally {
-      setProcessingRequest(null);
-    }
+    );
   };
 
   const handleReject = async (requestId, request) => {
-    if (!confirm(`Reject ${request.studentName}'s request to join the school?`)) {
-      return;
-    }
+    showConfirm(
+      "Reject Request",
+      `Reject ${request.studentName}'s request to join the school?`,
+      async () => {
+        setProcessingRequest(requestId);
 
-    setProcessingRequest(requestId);
+        try {
+          // Update request status
+          await updateDoc(doc(firestore, "schoolJoinRequests", requestId), {
+            status: "rejected",
+            processedAt: new Date(),
+            processedBy: userData.uid,
+          });
 
-    try {
-      // Update request status
-      await updateDoc(doc(firestore, "schoolJoinRequests", requestId), {
-        status: "rejected",
-        processedAt: new Date(),
-        processedBy: userData.uid,
-      });
+          // Remove from local state
+          setJoinRequests(prev => prev.filter(req => req.id !== requestId));
 
-      // Remove from local state
-      setJoinRequests(prev => prev.filter(req => req.id !== requestId));
-
-      alert(`${request.studentName}'s request has been rejected.`);
-    } catch (error) {
-      console.error("Error rejecting request:", error);
-      alert("Failed to reject request. Please try again.");
-    } finally {
-      setProcessingRequest(null);
-    }
+          showAlert("Request Rejected", `${request.studentName}'s request has been rejected.`);
+        } catch (error) {
+          console.error("Error rejecting request:", error);
+          showAlert("Error", "Failed to reject request. Please try again.");
+        } finally {
+          setProcessingRequest(null);
+        }
+      }
+    );
   };
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return "Unknown";
-    if (timestamp.toDate) {
-      return timestamp.toDate().toLocaleString();
-    }
-    if (timestamp instanceof Date) {
-      return timestamp.toLocaleString();
-    }
-    return new Date(timestamp).toLocaleString();
-  };
+
 
   if (loading) {
     return (
@@ -164,11 +162,21 @@ export default function SchoolJoinRequestsPage() {
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
             </div>
-          </div>
-        </div>
-      </ProtectedRoute>
-    );
-  }
+                  </div>
+      </div>
+      
+      {/* Modal */}
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        onConfirm={handleConfirm}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
+    </ProtectedRoute>
+  );
+}
 
   return (
     <ProtectedRoute requiredRole="admin">
@@ -232,9 +240,7 @@ export default function SchoolJoinRequestsPage() {
                             {(request.requestedRole === "teacher" || request.type === "teacher") ? "Teacher" : "Student"}
                           </span>
                         </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Requested to join school on {formatDate(request.createdAt)}
-                        </p>
+
                         {request.student && (
                           <div className="text-sm text-muted-foreground">
                             <p>Role: {request.student.role || 'Student'}</p>

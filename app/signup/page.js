@@ -1,12 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth, provider, firestore, createUserWithEmailAndPassword } from "@/firebase";
+import { auth, provider, firestore, createUserWithEmailAndPassword, sendEmailVerification } from "@/firebase";
 import { signInWithPopup } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, addDoc } from "firebase/firestore";
 import { useAuth } from "@/components/AuthContext";
 import Link from "next/link";
 import Image from "next/image";
+import { validateEmail, validatePassword, getValidationError } from "@/utils/validation";
 
 export default function SignupPage() {
   // Basic signup state
@@ -18,8 +19,59 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [tempUser, setTempUser] = useState(null);
   
+  // Validation errors
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
+  const [displayNameError, setDisplayNameError] = useState("");
+  
   const router = useRouter();
   const { user, userData, loading: authLoading } = useAuth();
+
+  // Clean up any existing temporary user data when component mounts
+  useEffect(() => {
+    localStorage.removeItem('tempUserData');
+  }, []);
+
+  // Handle page unload/refresh to preserve signup state
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Save current form state if user is in the middle of signup
+      if (email || password || displayName) {
+        const formState = {
+          email,
+          displayName,
+          // Don't save password for security
+        };
+        localStorage.setItem('signupInProgress', JSON.stringify(formState));
+      }
+    };
+
+    const handlePageShow = () => {
+      // Restore form state if user returns to the page
+      const savedState = localStorage.getItem('signupInProgress');
+      if (savedState && !user) {
+        try {
+          const state = JSON.parse(savedState);
+          setEmail(state.email || '');
+          setDisplayName(state.displayName || '');
+          // Don't restore password for security
+          localStorage.removeItem('signupInProgress');
+        } catch (error) {
+          console.error('Error restoring signup state:', error);
+          localStorage.removeItem('signupInProgress');
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pageshow', handlePageShow);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, [email, password, displayName, user]);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -36,20 +88,48 @@ export default function SignupPage() {
     }
   }, [user, userData, authLoading, router]);
 
+  // Validation functions
+  const validateEmailField = () => {
+    const error = getValidationError('email', email);
+    setEmailError(error || "");
+    return !error;
+  };
+
+  const validatePasswordField = () => {
+    const error = getValidationError('password', password);
+    setPasswordError(error || "");
+    return !error;
+  };
+
+  const validateConfirmPasswordField = () => {
+    const error = getValidationError('confirmPassword', confirmPassword, { password });
+    setConfirmPasswordError(error || "");
+    return !error;
+  };
+
+  const validateDisplayNameField = () => {
+    const error = getValidationError('displayName', displayName);
+    setDisplayNameError(error || "");
+    return !error;
+  };
+
   const handleEmailSignup = async (e) => {
     e.preventDefault();
-    if (!email || !password || !confirmPassword || !displayName) {
-      return setError("Please fill in all fields.");
-    }
-    if (password !== confirmPassword) {
-      return setError("Passwords do not match.");
-    }
-    if (password.length < 6) {
-      return setError("Password must be at least 6 characters long.");
+    
+    // Clear previous errors
+    setError(null);
+    
+    // Validate all fields
+    const isEmailValid = validateEmailField();
+    const isPasswordValid = validatePasswordField();
+    const isConfirmPasswordValid = validateConfirmPasswordField();
+    const isDisplayNameValid = validateDisplayNameField();
+    
+    if (!isEmailValid || !isPasswordValid || !isConfirmPasswordValid || !isDisplayNameValid) {
+      return;
     }
 
     setLoading(true);
-    setError(null);
 
     try {
       // Create user with email and password
@@ -66,6 +146,18 @@ export default function SignupPage() {
         return;
       }
 
+      // Send email verification
+      console.log("Sending email verification to:", user.email);
+      try {
+        await sendEmailVerification(user);
+        console.log("Email verification sent successfully");
+      } catch (verificationError) {
+        console.error("Email verification error:", verificationError);
+        console.error("Verification error code:", verificationError.code);
+        console.error("Verification error message:", verificationError.message);
+        // Continue with the flow even if verification fails
+      }
+      
       // Store temporary user data for role selection
       const tempUserData = {
         uid: user.uid,
@@ -74,9 +166,12 @@ export default function SignupPage() {
         photoURL: "",
       };
       setTempUser(tempUserData);
+      
+      // Store in localStorage for role selection page
+      localStorage.setItem('tempUserData', JSON.stringify(tempUserData));
 
-      // Redirect to role selection
-      router.push("/signup/role");
+      // Redirect to email verification page
+      router.push("/verify-email");
     } catch (err) {
       console.error("Email signup error", err);
       if (err.code === "auth/email-already-in-use") {
@@ -111,17 +206,23 @@ export default function SignupPage() {
         return;
       }
 
+      // Google users are already verified, so skip email verification
+      console.log("Google user is already verified, skipping email verification");
+      
       // Store temporary user data for role selection
       const tempUserData = {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName || "",
         photoURL: user.photoURL ? (user.photoURL.includes('lh3.googleusercontent.com') ? 
-          user.photoURL.replace(/=s\d+-c$/, '=s400-c') : user.photoURL) : "",
+          user.photoURL.replace(/=s400-c$/, '=s400-c') : user.photoURL) : "",
       };
       setTempUser(tempUserData);
+      
+      // Store in localStorage for role selection page
+      localStorage.setItem('tempUserData', JSON.stringify(tempUserData));
 
-      // Redirect to role selection
+      // Redirect directly to role selection since Google users are already verified
       router.push("/signup/role");
     } catch (err) {
       console.error("Google signup error", err);
@@ -201,11 +302,14 @@ export default function SignupPage() {
                   id="displayName"
                   type="text"
                   placeholder="Enter your full name"
-                  className="input"
+                  className={`input ${displayNameError ? 'border-destructive' : ''}`}
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  required
+                  onBlur={validateDisplayNameField}
                 />
+                {displayNameError && (
+                  <p className="text-xs text-destructive mt-1">{displayNameError}</p>
+                )}
               </div>
 
               <div>
@@ -214,13 +318,16 @@ export default function SignupPage() {
                 </label>
                 <input
                   id="email"
-                  type="email"
+                  type="text"
                   placeholder="Enter your email address"
-                  className="input"
+                  className={`input ${emailError ? 'border-destructive' : ''}`}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
+                  onBlur={validateEmailField}
                 />
+                {emailError && (
+                  <p className="text-xs text-destructive mt-1">{emailError}</p>
+                )}
               </div>
 
               <div>
@@ -231,11 +338,14 @@ export default function SignupPage() {
                   id="password"
                   type="password"
                   placeholder="Create a password"
-                  className="input"
+                  className={`input ${passwordError ? 'border-destructive' : ''}`}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
+                  onBlur={validatePasswordField}
                 />
+                {passwordError && (
+                  <p className="text-xs text-destructive mt-1">{passwordError}</p>
+                )}
               </div>
 
               <div>
@@ -246,11 +356,14 @@ export default function SignupPage() {
                   id="confirmPassword"
                   type="password"
                   placeholder="Confirm your password"
-                  className="input"
+                  className={`input ${confirmPasswordError ? 'border-destructive' : ''}`}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
+                  onBlur={validateConfirmPasswordField}
                 />
+                {confirmPasswordError && (
+                  <p className="text-xs text-destructive mt-1">{confirmPasswordError}</p>
+                )}
               </div>
 
               <button

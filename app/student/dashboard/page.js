@@ -1,26 +1,22 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { doc, updateDoc, arrayRemove, arrayUnion } from "firebase/firestore";
 import { firestore } from "@/firebase";
-import {
-  doc,
-  getDocs,
-  collection,
-  query,
-  where,
-  updateDoc,
-  arrayRemove,
-  arrayUnion,
-} from "firebase/firestore";
-import DashboardTopBar from "../../../components/DashboardTopBar";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
+import DashboardTopBar from "../../../components/DashboardTopBar";
+import { useModal } from "../../../utils/useModal";
+import db from "../../../utils/database";
+import { cacheUtils } from "../../../utils/cache";
 
 export default function StudentDashboard() {
   const [clubs, setClubs] = useState([]);
   const [allClubs, setAllClubs] = useState([]);
+  const [clubTags, setClubTags] = useState({});
   const router = useRouter();
   const { userData } = useAuth();
+  const { modalState, showConfirm, showAlert, closeModal, handleConfirm } = useModal();
 
   useEffect(() => {
     const fetchStudentData = async () => {
@@ -28,19 +24,51 @@ export default function StudentDashboard() {
 
       const userClubIds = userData.clubIds || [];
 
-      const clubQuery = query(
-        collection(firestore, "clubs"),
-        where("schoolId", "==", userData.schoolId)
-      );
-      const allClubsSnap = await getDocs(clubQuery);
-      const clubList = allClubsSnap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      // Check cache for clubs first
+      const cachedClubs = cacheUtils.getCachedClubs(userData.schoolId);
+      let clubList = [];
+      
+      if (cachedClubs) {
+        clubList = cachedClubs;
+      } else {
+        // Fetch clubs with caching
+        const clubsSnap = await db.getDocuments("clubs", {
+          whereClauses: [{ field: "schoolId", operator: "==", value: userData.schoolId }],
+          useCache: true
+        });
+        clubList = clubsSnap.documents;
+      }
 
       const joined = clubList.filter((c) => userClubIds.includes(c.id));
       const available = clubList.filter((c) => !userClubIds.includes(c.id));
 
+      // Fetch tags for all clubs with caching
+      const tagsMap = {};
+      
+      for (const club of clubList) {
+        if (club.tagIds && club.tagIds.length > 0) {
+          // Check cache for tags first
+          const cachedTags = cacheUtils.getCachedTags(club.tagIds);
+          if (cachedTags) {
+            tagsMap[club.id] = cachedTags;
+          } else {
+            // Fetch tags with caching
+            const tagsSnap = await db.getDocuments("tags", {
+              whereClauses: [{ field: "__name__", operator: "in", value: club.tagIds }],
+              useCache: true
+            });
+            const tags = tagsSnap.documents;
+            tagsMap[club.id] = tags;
+            
+            // Cache the tags
+            cacheUtils.cacheTags(club.tagIds, tags);
+          }
+        } else {
+          tagsMap[club.id] = [];
+        }
+      }
+      
+      setClubTags(tagsMap);
       setClubs(joined);
       setAllClubs(available);
     };
@@ -49,26 +77,26 @@ export default function StudentDashboard() {
   }, [userData]);
 
   const handleLeave = async (clubId) => {
-    if (!confirm("Are you sure you want to leave this club?")) return;
+    showConfirm("Leave Club", "Are you sure you want to leave this club?", async () => {
+      const updatedClubs = clubs.filter((c) => c.id !== clubId);
+      const leavingClub = clubs.find((c) => c.id === clubId);
 
-    const updatedClubs = clubs.filter((c) => c.id !== clubId);
-    const leavingClub = clubs.find((c) => c.id === clubId);
+      await updateDoc(doc(firestore, "users", userData.uid), {
+        clubIds: arrayRemove(clubId),
+      });
+      await updateDoc(doc(firestore, "clubs", clubId), {
+        studentIds: arrayRemove(userData.uid),
+      });
 
-    await updateDoc(doc(firestore, "users", userData.uid), {
-      clubIds: arrayRemove(clubId),
+      setClubs(updatedClubs);
+      setAllClubs((prev) => [leavingClub, ...prev]);
     });
-    await updateDoc(doc(firestore, "clubs", clubId), {
-      studentIds: arrayRemove(userData.uid),
-    });
-
-    setClubs(updatedClubs);
-    setAllClubs((prev) => [leavingClub, ...prev]);
   };
 
   const handleJoin = async (clubId) => {
     // Check if already a member
     if (clubs.some(c => c.id === clubId)) {
-      alert("You are already a member of this club.");
+      showAlert("Already a Member", "You are already a member of this club.");
       return;
     }
 
@@ -86,7 +114,7 @@ export default function StudentDashboard() {
       setAllClubs((prev) => prev.filter((c) => c.id !== clubId));
     } catch (error) {
       console.error("Error joining club:", error);
-      alert("Failed to join club. Please try again.");
+      showAlert("Join Failed", "Failed to join club. Please try again.");
     }
   };
 
@@ -137,6 +165,16 @@ export default function StudentDashboard() {
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground mb-4">{club.description}</p>
+                    
+                    {/* Tags */}
+                    {clubTags[club.id] && clubTags[club.id].length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-4">
+                        {clubTags[club.id].map((tag) => (
+                          <Tag key={tag.id} tag={tag} />
+                        ))}
+                      </div>
+                    )}
+                    
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">
                         {club.studentIds?.length || 0} members
@@ -175,6 +213,16 @@ export default function StudentDashboard() {
                   <div key={club.id} className="card p-6 hover:shadow-lg transition-shadow group">
                     <h3 className="text-lg font-semibold text-foreground mb-2">{club.name}</h3>
                     <p className="text-sm text-muted-foreground mb-4">{club.description}</p>
+                    
+                    {/* Tags */}
+                    {clubTags[club.id] && clubTags[club.id].length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-4">
+                        {clubTags[club.id].map((tag) => (
+                          <Tag key={tag.id} tag={tag} />
+                        ))}
+                      </div>
+                    )}
+                    
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">
                         {club.studentIds?.length || 0} members
@@ -193,6 +241,14 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        onConfirm={handleConfirm}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </ProtectedRoute>
   );
 }

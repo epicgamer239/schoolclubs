@@ -16,6 +16,8 @@ import {
 import ProtectedRoute from "../../../../components/ProtectedRoute";
 import { useAuth } from "../../../../components/AuthContext";
 import DashboardTopBar from "../../../../components/DashboardTopBar";
+import Modal from "../../../../components/Modal";
+import { useModal } from "../../../../utils/useModal";
 
 export default function ClubMembersPage() {
   const { clubId } = useParams();
@@ -23,6 +25,7 @@ export default function ClubMembersPage() {
   const [club, setClub] = useState(null);
   const [students, setStudents] = useState([]);
   const { userData, loading } = useAuth();
+  const { modalState, showConfirm, showAlert, closeModal, handleConfirm } = useModal();
 
   useEffect(() => {
     const fetchClubAndMembers = async () => {
@@ -54,17 +57,21 @@ export default function ClubMembersPage() {
   }, [clubId, userData, loading]);
 
   const handleRemove = async (studentId) => {
-    if (!confirm("Remove this student from the club?")) return;
+    showConfirm(
+      "Remove Student",
+      "Are you sure you want to remove this student from the club?",
+      async () => {
+        await updateDoc(doc(firestore, "clubs", clubId), {
+          studentIds: arrayRemove(studentId),
+        });
 
-    await updateDoc(doc(firestore, "clubs", clubId), {
-      studentIds: arrayRemove(studentId),
-    });
+        await updateDoc(doc(firestore, "users", studentId), {
+          clubIds: arrayRemove(clubId),
+        });
 
-    await updateDoc(doc(firestore, "users", studentId), {
-      clubIds: arrayRemove(clubId),
-    });
-
-    setStudents((prev) => prev.filter((s) => s.uid !== studentId));
+        setStudents((prev) => prev.filter((s) => s.uid !== studentId));
+      }
+    );
   };
 
   const handlePromote = async (studentId) => {
@@ -141,10 +148,10 @@ export default function ClubMembersPage() {
                         Promote to Leader
                       </button>
                     )}
-                    <button
-                      onClick={() => alert("Messaging feature coming soon")}
-                      className="btn-outline text-sm"
-                    >
+                                          <button
+                        onClick={() => showAlert("Coming Soon", "Messaging feature coming soon")}
+                        className="btn-outline text-sm"
+                      >
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
@@ -166,6 +173,14 @@ export default function ClubMembersPage() {
           )}
         </div>
       </div>
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        onConfirm={handleConfirm}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </ProtectedRoute>
   );
 }

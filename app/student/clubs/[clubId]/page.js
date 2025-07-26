@@ -19,6 +19,8 @@ import ProtectedRoute from "../../../../components/ProtectedRoute";
 import { useAuth } from "../../../../components/AuthContext";
 import DashboardTopBar from "../../../../components/DashboardTopBar";
 import Image from "next/image";
+import { getAttendance, getAnnouncements } from '../../../../utils/database';
+import AnnouncementCard from '../../../../components/AnnouncementCard';
 
 export default function StudentClubPage() {
   const { clubId } = useParams();
@@ -38,6 +40,8 @@ export default function StudentClubPage() {
   });
   const [joiningEvent, setJoiningEvent] = useState(null);
   const [leavingEvent, setLeavingEvent] = useState(null);
+  const [attendanceMap, setAttendanceMap] = useState({});
+  const [announcements, setAnnouncements] = useState([]);
 
   useEffect(() => {
     const fetchClubData = async () => {
@@ -92,6 +96,39 @@ export default function StudentClubPage() {
 
     fetchClubData();
   }, [clubId, userData, router]);
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      if (!userData || !events.length) return;
+      const map = {};
+      for (const event of events) {
+        try {
+          const attendance = await getAttendance(event.id);
+          const userAttendance = attendance.find(a => a.id === userData.uid);
+          map[event.id] = userAttendance ? userAttendance.status : null;
+        } catch {
+          map[event.id] = null;
+        }
+      }
+      setAttendanceMap(map);
+    };
+    fetchAttendance();
+  }, [userData, events]);
+
+  const fetchAnnouncements = async () => {
+    try {
+      const data = await getAnnouncements(clubId);
+      setAnnouncements(data);
+    } catch (error) {
+      console.error("Error fetching announcements:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (clubId) {
+      fetchAnnouncements();
+    }
+  }, [clubId]);
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
@@ -446,6 +483,9 @@ export default function StudentClubPage() {
                             </div>
                           )}
                         </div>
+                        {attendanceMap[event.id] && (
+                          <div className="text-xs mt-1">Attendance: <span className="font-semibold capitalize">{attendanceMap[event.id]}</span></div>
+                        )}
                         <button
                           onClick={() => isAttendingEvent(event) 
                             ? handleLeaveEvent(event.id) 
@@ -561,6 +601,28 @@ export default function StudentClubPage() {
             </div>
           </div>
         )}
+
+        {/* Announcements Section */}
+        <div className="card p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Announcements</h2>
+          </div>
+
+          {announcements.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">No announcements yet</p>
+          ) : (
+            <div className="space-y-4">
+              {announcements.map((announcement) => (
+                <AnnouncementCard
+                  key={announcement.id}
+                  announcement={announcement}
+                  onUpdate={fetchAnnouncements}
+                  onDelete={fetchAnnouncements}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </ProtectedRoute>
   );

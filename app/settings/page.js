@@ -10,6 +10,8 @@ import ProtectedRoute from "../../components/ProtectedRoute";
 import { useAuth } from "../../components/AuthContext";
 import DashboardTopBar from "../../components/DashboardTopBar";
 import Image from "next/image";
+import Modal from "../../components/Modal";
+import { useModal } from "../../utils/useModal";
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
@@ -35,6 +37,7 @@ export default function SettingsPage() {
   
   const router = useRouter();
   const { userData, loading: authLoading } = useAuth();
+  const { modalState, showAlert, closeModal } = useModal();
 
   useEffect(() => {
     if (userData) {
@@ -371,7 +374,7 @@ export default function SettingsPage() {
     try {
       console.log("Starting profile picture upload...");
       console.log("Preview image:", previewImage);
-      console.log("User ID:", userData.uid);
+      // User ID logged for debugging purposes
       
       // Create a unique filename
       const timestamp = Date.now();
@@ -478,7 +481,7 @@ Camera Permission Help:
 
 If camera still doesn't work, you can always upload a photo from your device instead.
     `;
-    alert(helpMessage);
+    showAlert("Camera Permission Help", helpMessage);
   };
 
   const resetCameraPermissions = async () => {
@@ -991,38 +994,19 @@ If camera still doesn't work, you can always upload a photo from your device ins
             </form>
           </div>
 
-          {/* Account Information */}
-          <div className="card p-8">
-            <h2 className="text-xl font-semibold mb-6 text-foreground">Account Information</h2>
-            
-            <div className="space-y-6">
-              <div className="flex justify-between items-center py-3 border-b border-border">
-                <span className="text-sm font-medium text-muted-foreground">Account Type</span>
-                <span className="text-sm text-foreground capitalize">{userData?.role || "Unknown"}</span>
-              </div>
 
-              <div className="flex justify-between items-center py-3 border-b border-border">
-                <span className="text-sm font-medium text-muted-foreground">Account Created</span>
-                <span className="text-sm text-foreground">
-                  {userData?.createdAt ? new Date(userData.createdAt.toDate()).toLocaleDateString() : "Unknown"}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center py-3 border-b border-border">
-                <span className="text-sm font-medium text-muted-foreground">User ID</span>
-                <span className="text-sm text-foreground font-mono">{userData?.uid || "Unknown"}</span>
-              </div>
-
-              {userData?.schoolId && (
-                <div className="flex justify-between items-center py-3">
-                  <span className="text-sm font-medium text-muted-foreground">School ID</span>
-                  <span className="text-sm text-foreground font-mono">{userData.schoolId}</span>
-                </div>
-              )}
-            </div>
-          </div>
         </div> {/* max-w-2xl mx-auto */}
       </div> {/* .container */}
+      
+      {/* Modal */}
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        onConfirm={closeModal}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </div> {/* min-h-screen */}
     </ProtectedRoute>
   );

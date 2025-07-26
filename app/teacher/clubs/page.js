@@ -15,30 +15,75 @@ import { useRouter } from "next/navigation";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
 import DashboardTopBar from "../../../components/DashboardTopBar";
+import Tag from "../../../components/Tag";
+import Modal from "../../../components/Modal";
+import { useModal } from "../../../utils/useModal";
 import Image from "next/image";
+import db from "../../../utils/database";
+import { cacheUtils, globalCache } from "../../../utils/cache";
 
 export default function TeacherClubsPage() {
   const [clubs, setClubs] = useState([]);
   const [clubDetails, setClubDetails] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadingDetails, setLoadingDetails] = useState({});
+  const [clubTags, setClubTags] = useState({});
   const router = useRouter();
   const { userData, loading: authLoading } = useAuth();
+  const { modalState, showConfirm, showAlert, closeModal, handleConfirm } = useModal();
 
   useEffect(() => {
     const fetchData = async () => {
       if (!userData?.uid) return;
 
-      const q = query(
-        collection(firestore, "clubs"),
-        where("teacherId", "==", userData.uid)
-      );
-      const querySnapshot = await getDocs(q);
-      const results = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      // Check cache for teacher's clubs first
+      const cacheKey = `teacherClubs:${userData.uid}`;
+      const cachedClubs = globalCache.get(cacheKey);
+      
+      if (cachedClubs) {
+        setClubs(cachedClubs.clubs);
+        setClubTags(cachedClubs.tags);
+        setLoading(false);
+        return;
+      }
 
+      // Fetch clubs with caching
+      const clubsSnap = await db.getDocuments("clubs", {
+        whereClauses: [{ field: "teacherId", operator: "==", value: userData.uid }],
+        useCache: true
+      });
+      const results = clubsSnap.documents;
+
+      // Fetch tags for all clubs with caching
+      const tagsMap = {};
+      
+      for (const club of results) {
+        if (club.tagIds && club.tagIds.length > 0) {
+          // Check cache for tags first
+          const cachedTags = cacheUtils.getCachedTags(club.tagIds);
+          if (cachedTags) {
+            tagsMap[club.id] = cachedTags;
+          } else {
+            // Fetch tags with caching
+            const tagsSnap = await db.getDocuments("tags", {
+              whereClauses: [{ field: "__name__", operator: "in", value: club.tagIds }],
+              useCache: true
+            });
+            const tags = tagsSnap.documents;
+            tagsMap[club.id] = tags;
+            
+            // Cache the tags
+            cacheUtils.cacheTags(club.tagIds, tags);
+          }
+        } else {
+          tagsMap[club.id] = [];
+        }
+      }
+      
+      // Cache the clubs and tags data
+      globalCache.set(cacheKey, { clubs: results, tags: tagsMap }, 300); // 5 minutes
+      
+      setClubTags(tagsMap);
       setClubs(results);
       setLoading(false);
     };
@@ -61,17 +106,34 @@ export default function TeacherClubsPage() {
         return;
       }
 
-      // Fetch all students in the club
+      // Check cache for club details first
+      const cacheKey = `clubDetails:${clubId}`;
+      const cachedDetails = globalCache.get(cacheKey);
+      
+      if (cachedDetails) {
+        setClubDetails(prev => ({ ...prev, [clubId]: cachedDetails }));
+        setLoadingDetails(prev => ({ ...prev, [clubId]: false }));
+        return;
+      }
+
+      // Fetch all students in the club with caching
       const studentsPromises = club.studentIds.map(async (studentId) => {
-        const studentDoc = await getDoc(doc(firestore, "users", studentId));
-        if (studentDoc.exists()) {
-          return { id: studentId, ...studentDoc.data() };
+        // Check cache for user data first
+        const cachedUser = cacheUtils.getCachedUser(studentId);
+        if (cachedUser) {
+          return cachedUser;
         }
-        return null;
+        
+        // Fetch user data with caching
+        const userData = await db.getDocument("users", studentId, true);
+        return userData;
       });
       
       const studentsResults = await Promise.all(studentsPromises);
       const students = studentsResults.filter(student => student !== null);
+      
+      // Cache the club details
+      globalCache.set(cacheKey, { students }, 300); // 5 minutes
 
       setClubDetails(prev => ({ ...prev, [clubId]: { students } }));
     } catch (error) {
@@ -82,41 +144,43 @@ export default function TeacherClubsPage() {
   };
 
   const handleKickStudent = async (clubId, studentId, studentName) => {
-    if (!confirm(`Are you sure you want to remove ${studentName} from this club?`)) {
-      return;
-    }
+    showConfirm(
+      "Remove Student",
+      `Are you sure you want to remove ${studentName} from this club?`,
+      async () => {
+        try {
+          // Remove student from club
+          await updateDoc(doc(firestore, "clubs", clubId), {
+            studentIds: arrayRemove(studentId)
+          });
 
-    try {
-      // Remove student from club
-      await updateDoc(doc(firestore, "clubs", clubId), {
-        studentIds: arrayRemove(studentId)
-      });
+          // Remove club from student's clubIds
+          await updateDoc(doc(firestore, "users", studentId), {
+            clubIds: arrayRemove(clubId)
+          });
 
-      // Remove club from student's clubIds
-      await updateDoc(doc(firestore, "users", studentId), {
-        clubIds: arrayRemove(clubId)
-      });
+          // Update local state
+          setClubs(prev => prev.map(club => 
+            club.id === clubId 
+              ? { ...club, studentIds: club.studentIds.filter(id => id !== studentId) }
+              : club
+          ));
 
-      // Update local state
-      setClubs(prev => prev.map(club => 
-        club.id === clubId 
-          ? { ...club, studentIds: club.studentIds.filter(id => id !== studentId) }
-          : club
-      ));
+          // Update club details
+          setClubDetails(prev => ({
+            ...prev,
+            [clubId]: {
+              students: prev[clubId]?.students.filter(student => student.id !== studentId) || []
+            }
+          }));
 
-      // Update club details
-      setClubDetails(prev => ({
-        ...prev,
-        [clubId]: {
-          students: prev[clubId]?.students.filter(student => student.id !== studentId) || []
+          showAlert("Success", `${studentName} has been removed from the club.`);
+        } catch (error) {
+          console.error("Error kicking student:", error);
+          showAlert("Error", "Failed to remove student from club. Please try again.");
         }
-      }));
-
-      alert(`${studentName} has been removed from the club.`);
-    } catch (error) {
-      console.error("Error kicking student:", error);
-      alert("Failed to remove student from club. Please try again.");
-    }
+      }
+    );
   };
 
   return (
@@ -169,8 +233,18 @@ export default function TeacherClubsPage() {
                     <div>
                       <h2 className="text-2xl font-bold text-foreground">{club.name}</h2>
                       <p className="text-muted-foreground mt-2">{club.description}</p>
+                      
+                      {/* Tags */}
+                      {clubTags[club.id] && clubTags[club.id].length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {clubTags[club.id].map((tag) => (
+                            <Tag key={tag.id} tag={tag} />
+                          ))}
+                        </div>
+                      )}
+                      
                       <div className="flex items-center gap-4 mt-3">
-                                                  <span className="badge-primary">
+                        <span className="badge-primary">
                           {club.studentIds?.length || 0} members
                         </span>
                       </div>
@@ -284,6 +358,16 @@ export default function TeacherClubsPage() {
           )}
         </div>
       </div>
+      
+      {/* Modal */}
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        onConfirm={handleConfirm}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </ProtectedRoute>
   );
 }

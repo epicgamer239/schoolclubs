@@ -6,18 +6,45 @@ import { useRouter } from "next/navigation";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
 import DashboardTopBar from "../../../components/DashboardTopBar";
+import Modal from "../../../components/Modal";
+import { useModal } from "../../../utils/useModal";
 
 export default function CreateClubPage() {
   const [clubName, setClubName] = useState("");
   const [description, setDescription] = useState("");
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [availableTags, setAvailableTags] = useState([]);
+  const [loadingTags, setLoadingTags] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
   const { userData, loading } = useAuth();
+  const { modalState, showAlert, closeModal } = useModal();
 
   useEffect(() => {
     if (!loading && userData) {
       if (!userData.schoolId) {
         setError("You must be joined to a school to create a club.");
+      } else {
+        // Fetch available tags for the school
+        const fetchTags = async () => {
+          try {
+            const q = query(
+              collection(firestore, "tags"),
+              where("schoolId", "==", userData.schoolId)
+            );
+            const querySnapshot = await getDocs(q);
+            const tagsList = querySnapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            }));
+            setAvailableTags(tagsList);
+            setLoadingTags(false);
+          } catch (error) {
+            console.error("Error fetching tags:", error);
+            setLoadingTags(false);
+          }
+        };
+        fetchTags();
       }
     }
   }, [userData, loading]);
@@ -55,10 +82,11 @@ export default function CreateClubPage() {
         schoolId: userData.schoolId,
         teacherId: userData.uid,
         studentIds: [],
+        tagIds: selectedTags,
         createdAt: serverTimestamp(),
       });
 
-      alert("Club created successfully!");
+      showAlert("Success", "Club created successfully!");
       router.push("/teacher/dashboard");
     } catch (err) {
       console.error(err);
@@ -122,6 +150,52 @@ export default function CreateClubPage() {
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-3 text-foreground">
+                  Tags (Optional)
+                </label>
+                {loadingTags ? (
+                  <div className="input text-muted-foreground">
+                    Loading tags...
+                  </div>
+                ) : availableTags.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      {availableTags.map((tag) => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => {
+                            if (selectedTags.includes(tag.id)) {
+                              setSelectedTags(selectedTags.filter(id => id !== tag.id));
+                            } else {
+                              setSelectedTags([...selectedTags, tag.id]);
+                            }
+                          }}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all duration-200 ${
+                            selectedTags.includes(tag.id)
+                              ? 'border-transparent text-white'
+                              : 'border-border text-foreground hover:border-primary'
+                          }`}
+                          style={{
+                            backgroundColor: selectedTags.includes(tag.id) ? tag.color : 'transparent'
+                          }}
+                        >
+                          {tag.name}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Select tags to help categorize your club. Contact an admin to create new tags.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    No tags available. Contact an admin to create tags for your school.
+                  </div>
+                )}
+              </div>
               
               <div className="flex gap-3 pt-4">
                 <button
@@ -141,6 +215,14 @@ export default function CreateClubPage() {
           </div>
         </div>
       </div>
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        onConfirm={closeModal}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </ProtectedRoute>
   );
 }

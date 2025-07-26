@@ -1,16 +1,33 @@
 // Validation utility functions
 
 export const validateEmail = (email) => {
+  if (!email) return false;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
 
 export const validatePassword = (password) => {
-  return password.length >= 6;
+  if (!password) return false;
+  // Password must be at least 8 characters with:
+  // - At least one uppercase letter
+  // - At least one lowercase letter
+  // - At least one number
+  const minLength = password.length >= 8;
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  return minLength && hasUpperCase && hasLowerCase && hasNumber;
+};
+
+export const validateSchoolCode = (code) => {
+  if (!code) return false;
+  // School code must be 6 characters, uppercase letters and numbers only
+  const codeRegex = /^[A-Z0-9]{6}$/;
+  return codeRegex.test(code);
 };
 
 export const validateRequired = (value) => {
-  return value && value.trim().length > 0;
+  return !!(value && value.trim().length > 0);
 };
 
 export const validateDate = (dateString) => {
@@ -27,15 +44,15 @@ export const validateTime = (timeString) => {
 };
 
 export const validateJoinCode = (code) => {
-  return code && code.trim().length >= 4;
+  return !!(code && code.trim().length >= 4);
 };
 
 export const validateClubName = (name) => {
-  return name && name.trim().length >= 2 && name.trim().length <= 50;
+  return !!(name && name.trim().length >= 2 && name.trim().length <= 50);
 };
 
 export const validateDescription = (description) => {
-  return description && description.trim().length >= 10 && description.trim().length <= 500;
+  return !!(description && description.trim().length >= 10 && description.trim().length <= 500);
 };
 
 export const getValidationError = (field, value, additionalData = {}) => {
@@ -44,51 +61,41 @@ export const getValidationError = (field, value, additionalData = {}) => {
       if (!validateRequired(value)) return 'Email is required';
       if (!validateEmail(value)) return 'Please enter a valid email address';
       return null;
-    
     case 'password':
       if (!validateRequired(value)) return 'Password is required';
-      if (!validatePassword(value)) return 'Password must be at least 6 characters long';
+      if (!validatePassword(value)) return 'Password must be at least 8 characters with uppercase, lowercase, and number';
       return null;
-    
     case 'confirmPassword':
       if (!validateRequired(value)) return 'Please confirm your password';
       if (value !== additionalData.password) return 'Passwords do not match';
       return null;
-    
     case 'displayName':
       if (!validateRequired(value)) return 'Name is required';
       if (value.trim().length < 2) return 'Name must be at least 2 characters long';
       return null;
-    
     case 'clubName':
       if (!validateRequired(value)) return 'Club name is required';
       if (!validateClubName(value)) return 'Club name must be between 2 and 50 characters';
       return null;
-    
     case 'description':
       if (!validateRequired(value)) return 'Description is required';
       if (!validateDescription(value)) return 'Description must be between 10 and 500 characters';
       return null;
-    
     case 'joinCode':
       if (!validateRequired(value)) return 'Join code is required';
       if (!validateJoinCode(value)) return 'Join code must be at least 4 characters';
       return null;
-    
     case 'eventTitle':
       if (!validateRequired(value)) return 'Event title is required';
       if (value.trim().length < 3) return 'Event title must be at least 3 characters long';
       return null;
-    
     case 'eventDate':
       if (!validateRequired(value)) return 'Event date is required';
       if (!validateDate(value)) return 'Event date cannot be in the past';
       return null;
-    
     case 'eventTime':
       if (value && !validateTime(value)) return 'Please enter a valid time (HH:MM)';
       return null;
-    
     default:
       return null;
   }

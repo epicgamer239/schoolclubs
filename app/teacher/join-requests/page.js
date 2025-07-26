@@ -16,6 +16,8 @@ import {
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
 import DashboardTopBar from "../../../components/DashboardTopBar";
+import Modal from "../../../components/Modal";
+import { useModal } from "../../../utils/useModal";
 import Image from "next/image";
 
 export default function JoinRequestsPage() {
@@ -24,6 +26,7 @@ export default function JoinRequestsPage() {
   const [processingRequest, setProcessingRequest] = useState(null);
   const router = useRouter();
   const { userData, loading: authLoading } = useAuth();
+  const { modalState, showConfirm, showAlert, closeModal, handleConfirm } = useModal();
 
   useEffect(() => {
     const fetchJoinRequests = async () => {
@@ -98,65 +101,69 @@ export default function JoinRequestsPage() {
   }, [userData, authLoading]);
 
   const handleApprove = async (requestId, request) => {
-    if (!confirm(`Approve ${request.studentName}'s request to join "${request.club.name}"?`)) {
-      return;
-    }
+    showConfirm(
+      "Approve Request",
+      `Approve ${request.studentName}'s request to join "${request.club.name}"?`,
+      async () => {
+        setProcessingRequest(requestId);
 
-    setProcessingRequest(requestId);
+        try {
+          // Add student to club
+          await updateDoc(doc(firestore, "clubs", request.clubId), {
+            studentIds: arrayUnion(request.studentId)
+          });
 
-    try {
-      // Add student to club
-      await updateDoc(doc(firestore, "clubs", request.clubId), {
-        studentIds: arrayUnion(request.studentId)
-      });
+          // Add club to student's clubIds
+          await updateDoc(doc(firestore, "users", request.studentId), {
+            clubIds: arrayUnion(request.clubId)
+          });
 
-      // Add club to student's clubIds
-      await updateDoc(doc(firestore, "users", request.studentId), {
-        clubIds: arrayUnion(request.clubId)
-      });
+          // Update request status
+          await updateDoc(doc(firestore, "joinRequests", requestId), {
+            status: "approved",
+            processedAt: new Date(),
+          });
 
-      // Update request status
-      await updateDoc(doc(firestore, "joinRequests", requestId), {
-        status: "approved",
-        processedAt: new Date(),
-      });
+          // Remove from local state
+          setJoinRequests(prev => prev.filter(req => req.id !== requestId));
 
-      // Remove from local state
-      setJoinRequests(prev => prev.filter(req => req.id !== requestId));
-
-      alert(`${request.studentName} has been approved to join ${request.club.name}!`);
-    } catch (error) {
-      console.error("Error approving request:", error);
-      alert("Failed to approve request. Please try again.");
-    } finally {
-      setProcessingRequest(null);
-    }
+          showAlert("Success", `${request.studentName} has been approved to join ${request.club.name}!`);
+        } catch (error) {
+          console.error("Error approving request:", error);
+          showAlert("Error", "Failed to approve request. Please try again.");
+        } finally {
+          setProcessingRequest(null);
+        }
+      }
+    );
   };
 
   const handleReject = async (requestId, request) => {
-    if (!confirm(`Reject ${request.studentName}'s request to join "${request.club.name}"?`)) {
-      return;
-    }
+    showConfirm(
+      "Reject Request",
+      `Reject ${request.studentName}'s request to join "${request.club.name}"?`,
+      async () => {
+        setProcessingRequest(requestId);
 
-    setProcessingRequest(requestId);
+        try {
+          // Update request status
+          await updateDoc(doc(firestore, "joinRequests", requestId), {
+            status: "rejected",
+            processedAt: new Date(),
+          });
 
-    try {
-      // Update request status
-      await updateDoc(doc(firestore, "joinRequests", requestId), {
-        status: "rejected",
-        processedAt: new Date(),
-      });
+          // Remove from local state
+          setJoinRequests(prev => prev.filter(req => req.id !== requestId));
 
-      // Remove from local state
-      setJoinRequests(prev => prev.filter(req => req.id !== requestId));
-
-      alert(`${request.studentName}'s request has been rejected.`);
-    } catch (error) {
-      console.error("Error rejecting request:", error);
-      alert("Failed to reject request. Please try again.");
-    } finally {
-      setProcessingRequest(null);
-    }
+          showAlert("Request Rejected", `${request.studentName}'s request has been rejected.`);
+        } catch (error) {
+          console.error("Error rejecting request:", error);
+          showAlert("Error", "Failed to reject request. Please try again.");
+        } finally {
+          setProcessingRequest(null);
+        }
+      }
+    );
   };
 
   const formatDate = (timestamp) => {
@@ -275,6 +282,16 @@ export default function JoinRequestsPage() {
           )}
         </div>
       </div>
+      
+      {/* Modal */}
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        onConfirm={handleConfirm}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </ProtectedRoute>
   );
 } 

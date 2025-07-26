@@ -19,6 +19,8 @@ import ProtectedRoute from "../../../../components/ProtectedRoute";
 import { useAuth } from "../../../../components/AuthContext";
 import DashboardTopBar from "../../../../components/DashboardTopBar";
 import Image from "next/image";
+import { setAttendance, getAttendance, createAnnouncement, getAnnouncements } from '../../../../utils/database';
+import AnnouncementCard from '../../../../components/AnnouncementCard';
 
 export default function TeacherClubPage() {
   const { clubId } = useParams();
@@ -38,6 +40,28 @@ export default function TeacherClubPage() {
   });
   const [joiningEvent, setJoiningEvent] = useState(null);
   const [leavingEvent, setLeavingEvent] = useState(null);
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [attendanceEventId, setAttendanceEventId] = useState(null);
+  const [attendanceData, setAttendanceData] = useState({});
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
+  const [showCreateAnnouncement, setShowCreateAnnouncement] = useState(false);
+  const [newAnnouncement, setNewAnnouncement] = useState({
+    title: "",
+    content: "",
+    priority: "normal"
+  });
+  const [creatingAnnouncement, setCreatingAnnouncement] = useState(false);
+
+  const fetchAnnouncements = async () => {
+    try {
+      const data = await getAnnouncements(clubId);
+      setAnnouncements(data);
+    } catch (error) {
+      console.error("Error fetching announcements:", error);
+    }
+  };
 
   useEffect(() => {
     const fetchClubData = async () => {
@@ -92,6 +116,12 @@ export default function TeacherClubPage() {
 
     fetchClubData();
   }, [clubId, userData, router]);
+
+  useEffect(() => {
+    if (clubId) {
+      fetchAnnouncements();
+    }
+  }, [clubId]);
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
@@ -210,6 +240,64 @@ export default function TeacherClubPage() {
       console.error("Error leaving event:", error);
     } finally {
       setLeavingEvent(null);
+    }
+  };
+
+  const openAttendanceModal = async (eventId) => {
+    setAttendanceEventId(eventId);
+    setShowAttendanceModal(true);
+    setAttendanceLoading(true);
+    try {
+      const data = await getAttendance(eventId);
+      const map = {};
+      data.forEach(a => { map[a.id] = a.status; });
+      setAttendanceData(map);
+    } catch (e) {
+      setAttendanceData({});
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const handleAttendanceChange = (userId, status) => {
+    setAttendanceData(prev => ({ ...prev, [userId]: status }));
+  };
+
+  const saveAttendance = async () => {
+    setAttendanceSaving(true);
+    try {
+      const promises = members.map(member =>
+        setAttendance(attendanceEventId, member.id, attendanceData[member.id] || 'absent', userData.uid)
+      );
+      await Promise.all(promises);
+      setShowAttendanceModal(false);
+    } finally {
+      setAttendanceSaving(false);
+    }
+  };
+
+  const handleCreateAnnouncement = async (e) => {
+    e.preventDefault();
+    if (!userData || creatingAnnouncement) return;
+
+    setCreatingAnnouncement(true);
+    try {
+      await createAnnouncement(clubId, {
+        ...newAnnouncement,
+        createdBy: userData.uid
+      });
+      
+      setNewAnnouncement({
+        title: "",
+        content: "",
+        priority: "normal"
+      });
+      setShowCreateAnnouncement(false);
+      fetchAnnouncements();
+    } catch (error) {
+      console.error("Error creating announcement:", error);
+    } finally {
+      setCreatingAnnouncement(false);
     }
   };
 
@@ -440,6 +528,9 @@ export default function TeacherClubPage() {
                            leavingEvent === event.id ? "Leaving..." :
                            isAttendingEvent(event) ? "Leave Event" : "Join Event"}
                         </button>
+                        {canManageEvents() && (
+                          <button onClick={() => openAttendanceModal(event.id)} className="btn-secondary w-full mt-2">Attendance</button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -539,7 +630,152 @@ export default function TeacherClubPage() {
             </div>
           </div>
         )}
+
+        {/* Announcements Section */}
+        <div className="card p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Announcements</h2>
+            <button
+              onClick={() => setShowCreateAnnouncement(true)}
+              className="btn-primary text-sm"
+            >
+              Create Announcement
+            </button>
+          </div>
+
+          {announcements.length === 0 ? (
+            <p className="text-muted-foreground text-center py-4">No announcements yet</p>
+          ) : (
+            <div className="space-y-4">
+              {announcements.map((announcement) => (
+                <AnnouncementCard
+                  key={announcement.id}
+                  announcement={announcement}
+                  onUpdate={fetchAnnouncements}
+                  onDelete={fetchAnnouncements}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Create Announcement Modal */}
+        {showCreateAnnouncement && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-background rounded-xl p-6 max-w-md w-full border border-border">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Create Announcement</h2>
+                <button
+                  onClick={() => setShowCreateAnnouncement(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateAnnouncement} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Title</label>
+                  <input
+                    type="text"
+                    value={newAnnouncement.title}
+                    onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
+                    className="input w-full"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Content</label>
+                  <textarea
+                    value={newAnnouncement.content}
+                    onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
+                    className="input w-full h-24 resize-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Priority</label>
+                  <select
+                    value={newAnnouncement.priority}
+                    onChange={(e) => setNewAnnouncement({ ...newAnnouncement, priority: e.target.value })}
+                    className="input w-full"
+                  >
+                    <option value="normal">Normal Priority</option>
+                    <option value="medium">Medium Priority</option>
+                    <option value="high">High Priority</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    className="btn-primary flex-1"
+                    disabled={creatingAnnouncement}
+                  >
+                    {creatingAnnouncement ? 'Creating...' : 'Create Announcement'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateAnnouncement(false)}
+                    className="btn-outline flex-1"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
+      {showAttendanceModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-background rounded-xl p-6 max-w-lg w-full border border-border">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Mark Attendance</h2>
+              <button onClick={() => setShowAttendanceModal(false)} className="text-muted-foreground hover:text-foreground">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {attendanceLoading ? (
+              <div className="text-center py-8">Loading...</div>
+            ) : (
+              <form onSubmit={e => { e.preventDefault(); saveAttendance(); }}>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {members.map(member => (
+                    <div key={member.id} className="flex items-center gap-3">
+                      <span className="w-32 truncate">{member.displayName || member.email}</span>
+                      <select
+                        className="input"
+                        value={attendanceData[member.id] || 'absent'}
+                        onChange={e => handleAttendanceChange(member.id, e.target.value)}
+                      >
+                        <option value="present">Present</option>
+                        <option value="absent">Absent</option>
+                        <option value="late">Late</option>
+                        <option value="excused">Excused</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button type="submit" className="btn-primary flex-1" disabled={attendanceSaving}>
+                    {attendanceSaving ? 'Saving...' : 'Save Attendance'}
+                  </button>
+                  <button type="button" onClick={() => setShowAttendanceModal(false)} className="btn-outline flex-1" disabled={attendanceSaving}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
   );
 } 

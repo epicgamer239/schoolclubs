@@ -15,6 +15,12 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
         return;
       }
 
+      // Check email verification
+      if (!user.emailVerified) {
+        router.push("/verify-email");
+        return;
+      }
+
       if (requiredRole && userData?.role !== requiredRole) {
         // Redirect based on user role
         if (userData?.role === "admin") {

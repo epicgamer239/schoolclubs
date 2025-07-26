@@ -2,6 +2,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../components/AuthContext";
 import ErrorBoundary from "../components/ErrorBoundary";
+import BrowserBlocker from "../components/BrowserBlocker";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -23,7 +24,7 @@ export default function RootLayout({ children }) {
       <body className={`${inter.variable} font-sans antialiased`}>
         <ErrorBoundary>
           <AuthProvider>
-            {children}
+            <BrowserBlocker>{children}</BrowserBlocker>
           </AuthProvider>
         </ErrorBoundary>
       </body>

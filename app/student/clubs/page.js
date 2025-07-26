@@ -14,12 +14,15 @@ import { useRouter } from "next/navigation";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
 import DashboardTopBar from "../../../components/DashboardTopBar";
+import Modal from "../../../components/Modal";
+import { useModal } from "../../../utils/useModal";
 
 export default function StudentClubList() {
   const [clubs, setClubs] = useState([]);
   const [joinedClubIds, setJoinedClubIds] = useState([]);
   const router = useRouter();
   const { userData, loading } = useAuth();
+  const { modalState, showAlert, closeModal } = useModal();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,7 +49,7 @@ export default function StudentClubList() {
     
     // Check if already a member
     if (joinedClubIds.includes(clubId)) {
-      alert("You are already a member of this club.");
+      showAlert("Already a Member", "You are already a member of this club.");
       return;
     }
     
@@ -60,7 +63,7 @@ export default function StudentClubList() {
       setJoinedClubIds((prev) => [...prev, clubId]);
     } catch (error) {
       console.error("Error joining club:", error);
-      alert("Failed to join club. Please try again.");
+      showAlert("Error", "Failed to join club. Please try again.");
     }
   };
 
@@ -109,6 +112,16 @@ export default function StudentClubList() {
           )}
         </div>
       </div>
+      
+      {/* Modal */}
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        onConfirm={closeModal}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </ProtectedRoute>
   );
 }

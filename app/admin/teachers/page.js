@@ -109,16 +109,7 @@ export default function AdminTeachersPage() {
     }
   };
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return "Unknown";
-    if (timestamp.toDate) {
-      return timestamp.toDate().toLocaleDateString();
-    }
-    if (timestamp instanceof Date) {
-      return timestamp.toLocaleDateString();
-    }
-    return new Date(timestamp).toLocaleDateString();
-  };
+
 
   if (loading) {
     return (
@@ -229,14 +220,11 @@ export default function AdminTeachersPage() {
                       <div>
                         <h3 className="font-semibold text-foreground">{teacher.displayName || "Unknown"}</h3>
                         <p className="text-sm text-muted-foreground">{teacher.email}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Joined: {formatDate(teacher.createdAt)}
-                        </p>
+
                       </div>
                     </div>
                     
                     <div className="flex items-center space-x-2">
-                      <span className="badge-secondary capitalize">{teacher.role}</span>
                       <button
                         onClick={() => {
                           setSelectedTeacher(teacher);

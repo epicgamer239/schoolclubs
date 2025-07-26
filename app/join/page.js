@@ -11,11 +11,14 @@ import {
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { auth } from "@/firebase";
+import Modal from "../../components/Modal";
+import { useModal } from "../../utils/useModal";
 
 export default function JoinSchoolPage() {
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
+  const { modalState, showAlert, closeModal } = useModal();
 
   const handleJoin = async (e) => {
     e.preventDefault();
@@ -41,7 +44,7 @@ export default function JoinSchoolPage() {
         schoolId: schoolDoc.id,
       });
 
-      alert("Joined school successfully!");
+      showAlert("Success", "Joined school successfully!");
       router.push("/dashboard");
     } catch (err) {
       console.error(err);
@@ -83,6 +86,14 @@ export default function JoinSchoolPage() {
           Join School
         </button>
       </form>
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        onConfirm={closeModal}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </div>
   );
 }

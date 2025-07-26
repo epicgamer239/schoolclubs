@@ -7,6 +7,8 @@ import { doc, getDoc, updateDoc, collection, getDocs, query, where } from "fireb
 import { useAuth } from "@/components/AuthContext";
 import Link from "next/link";
 import Image from "next/image";
+import db from "../../utils/database";
+import { globalCache } from "../../utils/cache";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -15,9 +17,38 @@ export default function LoginPage() {
   const router = useRouter();
   const { user, userData, loading } = useAuth();
 
-  // Redirect if already logged in
+  // Track if user just logged in
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
+
+  // Redirect if already logged in (but only after successful login, not on page load)
   useEffect(() => {
-    if (!loading && user && userData) {
+    console.log("Login page useEffect:", { user: !!user, userData: !!userData, loading, userEmail: user?.email, userVerified: user?.emailVerified, userRole: userData?.role, justLoggedIn });
+    
+    if (!loading && user && justLoggedIn) {
+      // Check if email is verified
+      if (!user.emailVerified) {
+        console.log("User not verified, redirecting to verify-email");
+        router.push("/verify-email");
+        return;
+      }
+      
+      // If userData is null, it means the user document doesn't exist in Firestore
+      // This happens when user signed up but didn't complete role selection
+      if (!userData) {
+        console.log("User verified but no userData (incomplete signup), redirecting to role selection");
+        router.push("/signup/role");
+        return;
+      }
+      
+      // Check if user has a role assigned
+      if (!userData.role) {
+        console.log("User verified but no role, redirecting to role selection");
+        router.push("/signup/role");
+        return;
+      }
+      
+      // User is verified and has a role, redirect to appropriate dashboard
+      console.log("User complete, redirecting to dashboard");
       if (userData.role === "admin") {
         router.push("/admin/dashboard");
       } else if (userData.role === "teacher") {
@@ -28,7 +59,7 @@ export default function LoginPage() {
         router.push("/welcome");
       }
     }
-  }, [user, userData, loading, router]);
+  }, [user, userData, loading, router, justLoggedIn]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -38,6 +69,7 @@ export default function LoginPage() {
       console.log("Attempting login with email:", email);
       await signInWithEmailAndPassword(auth, email, password);
       console.log("Login successful");
+      setJustLoggedIn(true);
       // The redirect will be handled by the useEffect above
     } catch (error) {
       console.error("Login error:", error);
@@ -45,17 +77,30 @@ export default function LoginPage() {
       // Check if user exists in our database to provide better error messages
       if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
         try {
-          // Check if user exists in Firestore
-          const usersQuery = query(collection(firestore, "users"), where("email", "==", email));
-          const userSnapshot = await getDocs(usersQuery);
+          // Check cache first for user lookup
+          const cacheKey = `userLookup:${email}`;
+          const cachedUser = globalCache.get(cacheKey);
           
-          if (!userSnapshot.empty) {
+          if (cachedUser) {
             // User exists in Firestore but login failed
-            // This likely means they signed up with Google
             setError("This email is associated with a Google account. Please use 'Continue with Google' to sign in.");
-          } else {
+            return;
+          }
+          
+          // Check if user exists in Firestore with caching
+          const usersSnap = await db.getDocuments("users", {
+            whereClauses: [{ field: "email", operator: "==", value: email }],
+            useCache: true
+          });
+          
+          if (!usersSnap.documents.length) {
             // User doesn't exist at all
             setError("No account found with this email. Please sign up first.");
+          } else {
+            // User exists in Firestore but login failed
+            setError("This email is associated with a Google account. Please use 'Continue with Google' to sign in.");
+            // Cache this lookup to avoid future queries
+            globalCache.set(cacheKey, true, 300); // 5 minutes
           }
         } catch (dbError) {
           console.error("Error checking user in database:", dbError);
@@ -121,6 +166,7 @@ export default function LoginPage() {
       }
       
       console.log("Google login successful");
+      setJustLoggedIn(true);
       // The redirect will be handled by the useEffect above
     } catch (error) {
       console.error("Google login error:", error);
@@ -140,14 +186,20 @@ export default function LoginPage() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mx-auto mb-4"></div>
-          <p className="text-muted-foreground font-medium">Loading...</p>
+          <p className="text-muted-foreground font-medium mb-4">Loading...</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="text-sm text-primary hover:text-primary/80 underline"
+          >
+            If this takes too long, click here to reload
+          </button>
         </div>
       </div>
     );
   }
 
-  // Don't show login form if already authenticated
-  if (user && userData) {
+  // Don't show login form if already authenticated and complete
+  if (user && userData && userData.role) {
     return null;
   }
 

@@ -6,31 +6,19 @@ import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs
 import { useAuth } from "@/components/AuthContext";
 import Link from "next/link";
 import Image from "next/image";
+import { globalCache } from "../../../utils/cache";
+import db from "../../../utils/database";
 
 export default function RoleSelectionPage() {
   const [role, setRole] = useState("");
   const [joinCode, setJoinCode] = useState("");
-  const [schoolName, setSchoolName] = useState("");
-  const [schoolSearch, setSchoolSearch] = useState("");
-  const [schoolResults, setSchoolResults] = useState([]);
-  const [selectedSchool, setSelectedSchool] = useState(null);
   const [schoolDetails, setSchoolDetails] = useState({
-    name: "",
-    address: "",
-    city: "",
-    state: "",
-    zipCode: "",
-    phone: "",
-    website: "",
-    ncesId: "",
-    schoolType: "",
-    gradeLevels: ""
+    name: ""
   });
   const [error, setError] = useState(null);
   const [step, setStep] = useState("role"); // "role", "joinCode", "createSchool"
   const [loading, setLoading] = useState(false);
   const [creatingSchool, setCreatingSchool] = useState(false);
-  const [searchingSchools, setSearchingSchools] = useState(false);
   const [success, setSuccess] = useState(null);
   
   const router = useRouter();
@@ -41,6 +29,12 @@ export default function RoleSelectionPage() {
     if (!authLoading) {
       if (!user) {
         router.push("/signup");
+        return;
+      }
+      
+      // Check if email is verified
+      if (!user.emailVerified) {
+        router.push("/verify-email");
         return;
       }
       
@@ -59,154 +53,55 @@ export default function RoleSelectionPage() {
     }
   }, [user, userData, authLoading, router]);
 
-  // Search schools using our API route (which calls Google Places API server-side)
-  const searchSchools = async (query) => {
-    if (!query || query.length < 3) {
-      setSchoolResults([]);
-      return;
-    }
-
-    setSearchingSchools(true);
-    try {
-      // Call our Next.js API route (no CORS issues)
-      const response = await fetch('/api/schools/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.places && data.places.length > 0) {
-          setSchoolResults(data.places);
-        } else {
-          console.log('No schools found, using fallback');
-          generateMockSchools(query);
-        }
-      } else {
-        console.error('Failed to fetch schools from API route');
-        generateMockSchools(query);
-      }
-    } catch (error) {
-      console.error('Error searching schools:', error);
-      generateMockSchools(query);
-    } finally {
-      setSearchingSchools(false);
-    }
-  };
-
-  // Fallback function to generate realistic mock schools
-  const generateMockSchools = (query) => {
-    const schoolTypes = ['Elementary School', 'Middle School', 'High School', 'Academy', 'Charter School'];
-    const cities = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'San Jose'];
-    const states = ['NY', 'CA', 'IL', 'TX', 'AZ', 'PA', 'FL', 'OH', 'GA', 'NC'];
-    
-    const mockSchools = schoolTypes.map((type, index) => {
-      const city = cities[index % cities.length];
-      const state = states[index % states.length];
-      const zipCode = Math.floor(Math.random() * 90000) + 10000;
-      const streetNumber = Math.floor(Math.random() * 9999) + 1;
-      const streetNames = ['Main St', 'Oak Ave', 'Pine Rd', 'Elm St', 'Maple Dr', 'Cedar Ln', 'Washington Blvd', 'Lincoln Ave'];
-      const streetName = streetNames[index % streetNames.length];
-      
-      return {
-        place_id: `mock_${index}`,
-        displayName: {
-          text: `${query} ${type}`,
-          languageCode: 'en'
-        },
-        formattedAddress: `${streetNumber} ${streetName}, ${city}, ${state} ${zipCode}`,
-        phoneNumbers: [{
-          number: `(${Math.floor(Math.random() * 900) + 100}) ${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`
-        }],
-        websiteUri: `https://${query.toLowerCase().replace(/\s+/g, '')}${type.toLowerCase().replace(/\s+/g, '')}.edu`,
-        addressComponents: [
-          { longText: streetNumber.toString(), types: ['street_number'] },
-          { longText: streetName, types: ['route'] },
-          { longText: city, types: ['locality'] },
-          { shortText: state, types: ['administrative_area_level_1'] },
-          { longText: zipCode.toString(), types: ['postal_code'] }
-        ]
-      };
-    });
-
-    setSchoolResults(mockSchools);
-  };
-
-  // Debounced search
+  // Handle page unload/refresh to preserve state
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (schoolSearch) {
-        searchSchools(schoolSearch);
-      } else {
-        setSchoolResults([]);
+    const handleBeforeUnload = () => {
+      // Save current form state to localStorage
+      if (role || joinCode || schoolDetails.name) {
+        const formState = {
+          role,
+          joinCode,
+          schoolName: schoolDetails.name,
+          step
+        };
+        localStorage.setItem('roleSelectionState', JSON.stringify(formState));
       }
-    }, 300);
+    };
 
-    return () => clearTimeout(timeoutId);
-  }, [schoolSearch]);
+    const handlePageShow = () => {
+      // Restore form state if user returns to the page
+      const savedState = localStorage.getItem('roleSelectionState');
+      if (savedState && user) {
+        try {
+          const state = JSON.parse(savedState);
+          setRole(state.role || '');
+          setJoinCode(state.joinCode || '');
+          setSchoolDetails({ name: state.schoolName || '' });
+          setStep(state.step || 'role');
+          localStorage.removeItem('roleSelectionState');
+        } catch (error) {
+          console.error('Error restoring form state:', error);
+          localStorage.removeItem('roleSelectionState');
+        }
+      }
+    };
 
-  // Auto-fill school details when a school is selected
-  const selectSchool = (school) => {
-    setSelectedSchool(school);
-    setSchoolSearch(school.displayName?.text || school.name || "");
-    
-    // Parse address components from Google Places API (New) response
-    let streetAddress = "";
-    let city = "";
-    let state = "";
-    let zipCode = "";
-    
-    if (school.addressComponents) {
-      // Extract street address
-      const streetNumber = school.addressComponents.find(component => 
-        component.types.includes('street_number')
-      )?.longText || "";
-      const route = school.addressComponents.find(component => 
-        component.types.includes('route')
-      )?.longText || "";
-      streetAddress = `${streetNumber} ${route}`.trim();
-      
-      // Extract city
-      city = school.addressComponents.find(component => 
-        component.types.includes('locality')
-      )?.longText || "";
-      
-      // Extract state
-      state = school.addressComponents.find(component => 
-        component.types.includes('administrative_area_level_1')
-      )?.shortText || "";
-      
-      // Extract ZIP code
-      zipCode = school.addressComponents.find(component => 
-        component.types.includes('postal_code')
-      )?.longText || "";
-    } else {
-      // Fallback to parsing formattedAddress if addressComponents not available
-      const addressParts = (school.formattedAddress || "").split(', ');
-      streetAddress = addressParts[0];
-      city = addressParts[1];
-      const stateZip = addressParts[2] || '';
-      state = stateZip.split(' ')[0];
-      zipCode = stateZip.split(' ')[1] || '';
-    }
-    
-    setSchoolDetails({
-      name: school.displayName?.text || school.name || "",
-      address: streetAddress || "",
-      city: city || "",
-      state: state || "",
-      zipCode: zipCode || "",
-      phone: school.phoneNumbers?.[0]?.number || "",
-      website: school.websiteUri || "",
-      ncesId: "",
-      schoolType: "",
-      gradeLevels: ""
-    });
-    setSchoolResults([]);
-  };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pageshow', handlePageShow);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+      }, [role, joinCode, schoolDetails.name, step, user]);
+
+
+
+
+
+
+
+
 
   const createUserAccount = async (user, userRole, schoolId = null) => {
     try {
@@ -215,6 +110,17 @@ export default function RoleSelectionPage() {
         console.error("Invalid user object:", user);
         setError("Invalid user data. Please try again.");
         return;
+      }
+
+      // Get temporary user data from localStorage if available
+      let tempUserData = null;
+      try {
+        const storedTempUser = localStorage.getItem('tempUserData');
+        if (storedTempUser) {
+          tempUserData = JSON.parse(storedTempUser);
+        }
+      } catch (error) {
+        console.error("Error parsing temp user data:", error);
       }
 
       // Check if user's email is in authorized admin list
@@ -238,8 +144,19 @@ export default function RoleSelectionPage() {
         }
       } else if (userRole !== "admin") {
         // For non-admins, check if their email is in any school's authorized admin list
-        const schoolsQuery = query(collection(firestore, "schools"));
-        const schoolsSnapshot = await getDocs(schoolsQuery);
+        // Check cache for schools first
+        const cacheKey = `schools:all`;
+        const cachedSchools = globalCache.get(cacheKey);
+        let schoolsSnapshot;
+        
+        if (cachedSchools) {
+          schoolsSnapshot = cachedSchools;
+        } else {
+          const schoolsQuery = query(collection(firestore, "schools"));
+          schoolsSnapshot = await getDocs(schoolsQuery);
+          // Cache schools data
+          globalCache.set(cacheKey, schoolsSnapshot, 1800); // 30 minutes
+        }
         
         for (const schoolDoc of schoolsSnapshot.docs) {
           const schoolData = schoolDoc.data();
@@ -254,17 +171,34 @@ export default function RoleSelectionPage() {
       }
 
       const userRef = doc(firestore, "users", user.uid);
-      // Check if a user with this email already exists
-      const usersQuery = query(collection(firestore, "users"), where("email", "==", user.email));
-      const usersSnapshot = await getDocs(usersQuery);
-      if (!usersSnapshot.empty) {
+      // Check if a user with this email already exists with caching
+      const cacheKey = `userLookup:${user.email}`;
+      const cachedUser = globalCache.get(cacheKey);
+      
+      if (cachedUser) {
         setError("You already have an account. Please sign in instead.");
         return;
       }
+      
+      const usersSnap = await db.getDocuments("users", {
+        whereClauses: [{ field: "email", operator: "==", value: user.email }],
+        useCache: true
+      });
+      
+      if (usersSnap.documents.length > 0) {
+        setError("You already have an account. Please sign in instead.");
+        // Cache this lookup
+        globalCache.set(cacheKey, true, 300); // 5 minutes
+        return;
+      }
+      
+      // Use display name from temp user data if available, otherwise fall back to Firebase Auth user
+      const displayName = tempUserData?.displayName || user.displayName || "";
+      
       const userData = {
         uid: user.uid,
         email: user.email,
-        displayName: user.displayName || "",
+        displayName: displayName,
         photoURL: user.photoURL ? (user.photoURL.includes('lh3.googleusercontent.com') ? 
           user.photoURL.replace(/=s\d+-c$/, '=s400-c') : user.photoURL) : "",
         role: finalRole,
@@ -274,6 +208,9 @@ export default function RoleSelectionPage() {
       };
       
       await setDoc(userRef, userData);
+      
+      // Clean up temporary user data
+      localStorage.removeItem('tempUserData');
 
       // Use hard redirect to ensure auth context is refreshed
       if (finalSchoolId) {
@@ -303,11 +240,11 @@ export default function RoleSelectionPage() {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       
       // Check if code already exists
-      const query = codeType === 'student' 
+      const schoolsQuery = codeType === 'student' 
         ? query(collection(firestore, "schools"), where("studentJoinCode", "==", code))
         : query(collection(firestore, "schools"), where("teacherJoinCode", "==", code));
       
-      const snapshot = await getDocs(query);
+      const snapshot = await getDocs(schoolsQuery);
       
       if (snapshot.empty) {
         return code;
@@ -356,15 +293,6 @@ export default function RoleSelectionPage() {
         
         const schoolData = {
           name: schoolDetails.name,
-          address: schoolDetails.address,
-          city: schoolDetails.city,
-          state: schoolDetails.state,
-          zipCode: schoolDetails.zipCode,
-          phone: schoolDetails.phone,
-          website: schoolDetails.website,
-          ncesId: schoolDetails.ncesId,
-          schoolType: schoolDetails.schoolType,
-          gradeLevels: schoolDetails.gradeLevels,
           studentJoinCode: studentJoinCode,
           teacherJoinCode: teacherJoinCode,
           createdBy: user.uid,
@@ -588,49 +516,10 @@ export default function RoleSelectionPage() {
                   </svg>
                 </div>
                 <h2 className="text-xl font-semibold text-foreground">Create Your School</h2>
-                <p className="text-muted-foreground text-sm">Search for your school to auto-fill details</p>
+                <p className="text-muted-foreground text-sm">Enter your school name to get started</p>
               </div>
               
-              {/* School Search */}
-              <div className="relative">
-                <label htmlFor="schoolSearch" className="block text-sm font-semibold mb-3 text-foreground">
-                  Search for your school
-                </label>
-                <input
-                  id="schoolSearch"
-                  type="text"
-                  placeholder="Start typing your school name..."
-                  className="input"
-                  value={schoolSearch}
-                  onChange={(e) => { setSchoolSearch(e.target.value); setError(null); }}
-                  disabled={creatingSchool}
-                />
-                {searchingSchools && (
-                  <div className="absolute right-3 top-8">
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
-                  </div>
-                )}
-                
-                {/* Search Results Dropdown */}
-                {schoolResults.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-background rounded-lg shadow-2xl border border-border max-h-60 overflow-y-auto">
-                    {schoolResults.map((school, index) => (
-                      <button
-                        key={index}
-                        onClick={() => selectSchool(school)}
-                        className="w-full text-left p-4 hover:bg-muted border-b border-border/50 last:border-b-0 transition-colors"
-                      >
-                        <div className="font-semibold text-foreground">{school.displayName?.text || school.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {school.formattedAddress}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* School Details Form */}
+              {/* School Name Form */}
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-foreground">School Name *</label>
@@ -640,74 +529,8 @@ export default function RoleSelectionPage() {
                     value={schoolDetails.name}
                     onChange={(e) => setSchoolDetails({...schoolDetails, name: e.target.value})}
                     disabled={creatingSchool}
+                    placeholder="Enter your school name"
                     required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-foreground">Address</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={schoolDetails.address}
-                    onChange={(e) => setSchoolDetails({...schoolDetails, address: e.target.value})}
-                    disabled={creatingSchool}
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-semibold mb-2 text-foreground">City</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={schoolDetails.city}
-                      onChange={(e) => setSchoolDetails({...schoolDetails, city: e.target.value})}
-                      disabled={creatingSchool}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-2 text-foreground">State</label>
-                    <input
-                      type="text"
-                      className="input"
-                      value={schoolDetails.state}
-                      onChange={(e) => setSchoolDetails({...schoolDetails, state: e.target.value})}
-                      disabled={creatingSchool}
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-foreground">ZIP Code</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={schoolDetails.zipCode}
-                    onChange={(e) => setSchoolDetails({...schoolDetails, zipCode: e.target.value})}
-                    disabled={creatingSchool}
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-foreground">Phone</label>
-                  <input
-                    type="tel"
-                    className="input"
-                    value={schoolDetails.phone}
-                    onChange={(e) => setSchoolDetails({...schoolDetails, phone: e.target.value})}
-                    disabled={creatingSchool}
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-foreground">Website</label>
-                  <input
-                    type="url"
-                    className="input"
-                    value={schoolDetails.website}
-                    onChange={(e) => setSchoolDetails({...schoolDetails, website: e.target.value})}
-                    disabled={creatingSchool}
                   />
                 </div>
               </div>

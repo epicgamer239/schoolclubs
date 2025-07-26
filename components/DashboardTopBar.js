@@ -6,8 +6,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
+import EmailVerificationBanner from "./EmailVerificationBanner";
 
-export default function DashboardTopBar({ title = "StudyHub" }) {
+export default function DashboardTopBar({ title = "StudyHub", onNavigation }) {
   const { userData } = useAuth();
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -56,9 +57,10 @@ export default function DashboardTopBar({ title = "StudyHub" }) {
   }, [userData]);
 
   return (
-    <header className="bg-background border-b border-border px-6 py-4 mb-6">
-      <div className="container">
-        <div className="flex items-center justify-between">
+    <>
+      <header className="bg-background border-b border-border px-6 py-4 mb-6">
+        <div className="container">
+          <div className="flex items-center justify-between">
           <div className="flex items-center space-x-8">
             <div className="flex items-center space-x-3">
               <Image
@@ -74,24 +76,24 @@ export default function DashboardTopBar({ title = "StudyHub" }) {
             {/* Admin Navigation Links */}
             {userData?.role === "admin" && (
               <nav className="flex items-center space-x-1">
-                <Link
-                  href="/admin/dashboard"
+                <button
+                  onClick={() => onNavigation ? onNavigation("/admin/dashboard") : router.push("/admin/dashboard")}
                   className="nav-link"
                 >
                   Dashboard
-                </Link>
-                <Link
-                  href="/admin/clubs"
+                </button>
+                <button
+                  onClick={() => onNavigation ? onNavigation("/admin/clubs") : router.push("/admin/clubs")}
                   className="nav-link"
                 >
                   Manage Clubs
-                </Link>
-                <Link
-                  href="/admin/school"
+                </button>
+                <button
+                  onClick={() => onNavigation ? onNavigation("/admin/school") : router.push("/admin/school")}
                   className="nav-link"
                 >
                   School Settings
-                </Link>
+                </button>
               </nav>
             )}
 
@@ -243,5 +245,9 @@ export default function DashboardTopBar({ title = "StudyHub" }) {
         </div>
       </div>
     </header>
+    
+    {/* Email Verification Banner */}
+    <EmailVerificationBanner />
+    </>
   );
 }

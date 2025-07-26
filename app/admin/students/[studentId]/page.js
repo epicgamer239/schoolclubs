@@ -69,28 +69,7 @@ export default function StudentDetailPage() {
     }
   }, [studentId, userData, authLoading]);
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return "Unknown";
-    
-    try {
-      // Handle Firestore timestamp
-      if (timestamp.toDate) {
-        return new Date(timestamp.toDate()).toLocaleDateString();
-      }
-      // Handle regular date object or timestamp
-      if (timestamp instanceof Date) {
-        return timestamp.toLocaleDateString();
-      }
-      // Handle timestamp number
-      if (typeof timestamp === 'number') {
-        return new Date(timestamp).toLocaleDateString();
-      }
-      return "Unknown";
-    } catch (error) {
-      console.error("Error formatting date:", error);
-      return "Unknown";
-    }
-  };
+
 
   if (loading) {
     return (
@@ -186,12 +165,7 @@ export default function StudentDetailPage() {
                   <span className="text-muted-foreground text-sm">Role:</span>
                   <p className="font-medium capitalize">{student.role}</p>
                 </div>
-                <div>
-                  <span className="text-muted-foreground text-sm">Account Created:</span>
-                  <p className="font-medium">
-                    {formatDate(student.createdAt)}
-                  </p>
-                </div>
+
               </div>
             </div>
 
@@ -250,7 +224,6 @@ export default function StudentDetailPage() {
                     <p className="text-muted-foreground text-sm mb-3">{club.description}</p>
                     <div className="text-xs text-muted-foreground">
                       <p>Members: {club.studentIds?.length || 0}</p>
-                      <p>Created: {formatDate(club.createdAt)}</p>
                     </div>
                   </div>
                 ))}

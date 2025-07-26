@@ -14,6 +14,9 @@ import {
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
 import DashboardTopBar from "../../../components/DashboardTopBar";
+import Tag from "../../../components/Tag";
+import Modal from "../../../components/Modal";
+import { useModal } from "../../../utils/useModal";
 
 export default function AdminClubManager() {
   const [clubs, setClubs] = useState([]);
@@ -21,8 +24,10 @@ export default function AdminClubManager() {
   const [search, setSearch] = useState("");
   const [memberFilter, setMemberFilter] = useState("all");
   const [editingClubId, setEditingClubId] = useState(null);
+  const [clubTags, setClubTags] = useState({});
   const router = useRouter();
   const { userData, loading } = useAuth();
+  const { modalState, showConfirm, closeModal, handleConfirm } = useModal();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -32,6 +37,27 @@ export default function AdminClubManager() {
       const snap = await getDocs(q);
       const list = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
+      // Fetch tags for all clubs
+      const tagsMap = {};
+      
+      for (const club of list) {
+        if (club.tagIds && club.tagIds.length > 0) {
+          const tagsQuery = query(
+            collection(firestore, "tags"),
+            where("__name__", "in", club.tagIds)
+          );
+          const tagsSnapshot = await getDocs(tagsQuery);
+          const tags = tagsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          tagsMap[club.id] = tags;
+        } else {
+          tagsMap[club.id] = [];
+        }
+      }
+      
+      setClubTags(tagsMap);
       setClubs(list);
       setFiltered(list);
     };
@@ -42,10 +68,15 @@ export default function AdminClubManager() {
   }, [userData, loading]);
 
   const handleDelete = async (id) => {
-    if (!confirm("Delete this club?")) return;
-    await deleteDoc(doc(firestore, "clubs", id));
-    setClubs((prev) => prev.filter((c) => c.id !== id));
-    setFiltered((prev) => prev.filter((c) => c.id !== id));
+    showConfirm(
+      "Delete Club",
+      "Are you sure you want to delete this club? This action cannot be undone.",
+      async () => {
+        await deleteDoc(doc(firestore, "clubs", id));
+        setClubs((prev) => prev.filter((c) => c.id !== id));
+        setFiltered((prev) => prev.filter((c) => c.id !== id));
+      }
+    );
   };
 
   const handleEdit = (id) => {
@@ -277,6 +308,15 @@ export default function AdminClubManager() {
                         <div>
                           <h2 className="text-xl font-bold text-foreground">{club.name}</h2>
                           <p className="text-muted-foreground mt-1">{club.description}</p>
+                          
+                          {/* Tags */}
+                          {clubTags[club.id] && clubTags[club.id].length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {clubTags[club.id].map((tag) => (
+                                <Tag key={tag.id} tag={tag} />
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="badge-primary">
@@ -322,6 +362,14 @@ export default function AdminClubManager() {
           </div>
         </div>
       </div>
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        onConfirm={handleConfirm}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </ProtectedRoute>
   );
 }

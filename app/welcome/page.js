@@ -236,10 +236,10 @@ export default function HomePage() {
               © 2024 StudyHub. All rights reserved.
             </p>
             <div className="flex items-center space-x-4">
-              <Link href="/privacy" className="text-muted-foreground hover:text-foreground transition-colors text-sm">
+              <Link href="/privacy-policy" className="text-muted-foreground hover:text-foreground transition-colors text-sm">
                 Privacy Policy
               </Link>
-              <Link href="/terms" className="text-muted-foreground hover:text-foreground transition-colors text-sm">
+              <Link href="/terms-of-service" className="text-muted-foreground hover:text-foreground transition-colors text-sm">
                 Terms of Service
               </Link>
             </div>

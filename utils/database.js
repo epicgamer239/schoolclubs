@@ -27,7 +27,17 @@ const DB_CONFIG = {
   MAX_LIMIT: 100,
   CACHE_TTL: 300, // 5 minutes
   RETRY_ATTEMPTS: 3,
-  RETRY_DELAY: 1000
+  RETRY_DELAY: 1000,
+  // Optimized cache durations
+  CACHE_DURATIONS: {
+    USER: 1800,        // 30 minutes
+    SCHOOL: 3600,      // 1 hour  
+    CLUBS: 900,        // 15 minutes
+    EVENTS: 300,       // 5 minutes
+    TAGS: 1800,        // 30 minutes
+    JOIN_REQUESTS: 120, // 2 minutes
+    DASHBOARD: 300     // 5 minutes
+  }
 };
 
 // Database security and validation utilities
@@ -109,7 +119,18 @@ class DatabaseManager {
     const cacheKey = cacheKeys[collectionName]?.(docId) || `${collectionName}:${docId}`;
     
     if (useCache) {
-      const cached = cacheUtils.getCachedUser(docId);
+      // Use appropriate cache function based on collection
+      let cached;
+      switch (collectionName) {
+        case 'users':
+          cached = cacheUtils.getCachedUser(docId);
+          break;
+        case 'schools':
+          cached = cacheUtils.getCachedSchool(docId);
+          break;
+        default:
+          cached = globalCache.get(cacheKey);
+      }
       if (cached) return cached;
     }
 
@@ -123,9 +144,19 @@ class DatabaseManager {
       
       const data = { id: docSnap.id, ...docSnap.data() };
       
-      // Cache the result
+      // Cache the result with appropriate duration
       if (useCache) {
-        cacheUtils.cacheUser(docId, data);
+        const cacheDuration = DB_CONFIG.CACHE_DURATIONS[collectionName.toUpperCase()] || DB_CONFIG.CACHE_TTL;
+        switch (collectionName) {
+          case 'users':
+            cacheUtils.cacheUser(docId, data);
+            break;
+          case 'schools':
+            cacheUtils.cacheSchool(docId, data);
+            break;
+          default:
+            globalCache.set(cacheKey, data, cacheDuration);
+        }
       }
       
       return data;
@@ -424,3 +455,120 @@ export const schemas = {
 // Create and export database manager instance
 const db = new DatabaseManager();
 export default db; 
+
+// Attendance utilities
+export async function setAttendance(eventId, userId, status, markedBy) {
+  const attendanceRef = doc(firestore, 'events', eventId, 'attendance', userId);
+  await updateDoc(attendanceRef, {
+    status,
+    markedBy,
+    timestamp: serverTimestamp(),
+  });
+}
+
+export async function getAttendance(eventId) {
+  const attendanceCol = collection(firestore, 'events', eventId, 'attendance');
+  const snap = await getDocs(attendanceCol);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+ 
+
+// Announcement utilities
+export async function createAnnouncement(clubId, data) {
+  const announcementData = {
+    ...data,
+    clubId,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  
+  const docRef = await addDoc(collection(firestore, 'announcements'), announcementData);
+  return { id: docRef.id, ...announcementData };
+}
+
+export async function getAnnouncements(clubId) {
+  const announcementsQuery = query(
+    collection(firestore, 'announcements'),
+    where('clubId', '==', clubId),
+    orderBy('createdAt', 'desc')
+  );
+  const snap = await getDocs(announcementsQuery);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function updateAnnouncement(announcementId, data) {
+  const updateData = {
+    ...data,
+    updatedAt: serverTimestamp(),
+  };
+  
+  await updateDoc(doc(firestore, 'announcements', announcementId), updateData);
+  return { id: announcementId, ...updateData };
+}
+
+export async function deleteAnnouncement(announcementId) {
+  await deleteDoc(doc(firestore, 'announcements', announcementId));
+}
+
+export async function getAnnouncementsForUser(userId, clubIds) {
+  if (!clubIds || clubIds.length === 0) return [];
+  
+  const announcementsQuery = query(
+    collection(firestore, 'announcements'),
+    where('clubId', 'in', clubIds),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  const snap = await getDocs(announcementsQuery);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+} 
+
+// Enhanced RSVP utilities
+export async function setEventRSVP(eventId, userId, status) {
+  const rsvpRef = doc(firestore, 'events', eventId, 'rsvps', userId);
+  await updateDoc(rsvpRef, {
+    status, // 'yes', 'no', 'maybe'
+    userId,
+    timestamp: serverTimestamp(),
+  });
+}
+
+export async function getEventRSVPs(eventId) {
+  const rsvpCol = collection(firestore, 'events', eventId, 'rsvps');
+  const snap = await getDocs(rsvpCol);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function getEventRSVPSummary(eventId) {
+  const rsvps = await getEventRSVPs(eventId);
+  const summary = { yes: 0, no: 0, maybe: 0, total: rsvps.length };
+  rsvps.forEach(rsvp => {
+    if (summary[rsvp.status] !== undefined) summary[rsvp.status]++;
+  });
+  return summary;
+}
+
+export async function markEventAttendance(eventId, userId, status) {
+  const attendanceRef = doc(firestore, 'events', eventId, 'attendance', userId);
+  await updateDoc(attendanceRef, {
+    status, // 'present', 'absent', 'late', 'excused'
+    userId,
+    timestamp: serverTimestamp(),
+  });
+}
+
+export async function getEventAttendance(eventId) {
+  const attendanceCol = collection(firestore, 'events', eventId, 'attendance');
+  const snap = await getDocs(attendanceCol);
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+export async function getEventAttendanceSummary(eventId) {
+  const attendance = await getEventAttendance(eventId);
+  const summary = { present: 0, absent: 0, late: 0, excused: 0, total: attendance.length };
+  attendance.forEach(a => {
+    if (summary[a.status] !== undefined) summary[a.status]++;
+  });
+  return summary;
+} 

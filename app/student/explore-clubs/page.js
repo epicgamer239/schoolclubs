@@ -17,7 +17,10 @@ import {
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
 import DashboardTopBar from "../../../components/DashboardTopBar";
+import Tag from "../../../components/Tag";
 import Image from "next/image";
+import Modal from "../../../components/Modal";
+import { useModal } from "../../../utils/useModal";
 
 export default function StudentExploreClubs() {
   const [clubs, setClubs] = useState([]);
@@ -27,8 +30,10 @@ export default function StudentExploreClubs() {
   const [clubDetails, setClubDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [joiningClub, setJoiningClub] = useState(null);
+  const [clubTags, setClubTags] = useState({});
   const router = useRouter();
   const { userData } = useAuth();
+  const { modalState, showAlert, closeModal } = useModal();
 
   useEffect(() => {
     const fetchClubs = async () => {
@@ -53,6 +58,29 @@ export default function StudentExploreClubs() {
 
         setClubs(available);
         setUserClubs(joined);
+
+        // Fetch tags for all clubs
+        const allClubIds = clubsList.map(club => club.id);
+        const tagsMap = {};
+        
+        for (const club of clubsList) {
+          if (club.tagIds && club.tagIds.length > 0) {
+            const tagsQuery = query(
+              collection(firestore, "tags"),
+              where("__name__", "in", club.tagIds)
+            );
+            const tagsSnapshot = await getDocs(tagsQuery);
+            const tags = tagsSnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            tagsMap[club.id] = tags;
+          } else {
+            tagsMap[club.id] = [];
+          }
+        }
+        
+        setClubTags(tagsMap);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching clubs:", error);
@@ -134,10 +162,10 @@ export default function StudentExploreClubs() {
     const club = clubs.find(c => c.id === clubId);
     const joinCheck = canJoinClub(club);
     
-    if (!joinCheck.canJoin) {
-      alert(joinCheck.reason);
-      return;
-    }
+          if (!joinCheck.canJoin) {
+        showAlert("Cannot Join Club", joinCheck.reason);
+        return;
+      }
 
     setJoiningClub(clubId);
 
@@ -152,11 +180,11 @@ export default function StudentExploreClubs() {
         );
         const existingRequestSnapshot = await getDocs(existingRequestQuery);
         
-        if (!existingRequestSnapshot.empty) {
-          alert("You already have a pending request to join this club. Please wait for the teacher to review your request.");
-          setJoiningClub(null);
-          return;
-        }
+                  if (!existingRequestSnapshot.empty) {
+            showAlert("Already Requested", "You already have a pending request to join this club. Please wait for the teacher to review your request.");
+            setJoiningClub(null);
+            return;
+          }
 
         // Create join request
         await addDoc(collection(firestore, "joinRequests"), {
@@ -168,7 +196,7 @@ export default function StudentExploreClubs() {
           createdAt: serverTimestamp(),
         });
         
-        alert("Join request sent! The teacher will review your request.");
+                  showAlert("Join Request Sent", "Join request sent! The teacher will review your request.");
       } else {
         // Direct join
         await updateDoc(doc(firestore, "users", userData.uid), {
@@ -194,11 +222,11 @@ export default function StudentExploreClubs() {
           }));
         }
 
-        alert("Successfully joined the club!");
+                  showAlert("Success", "Successfully joined the club!");
       }
     } catch (error) {
       console.error("Error joining club:", error);
-      alert("Failed to join club. Please try again.");
+              showAlert("Error", "Failed to join club. Please try again.");
     } finally {
       setJoiningClub(null);
     }
@@ -329,6 +357,15 @@ export default function StudentExploreClubs() {
                     
                     <p className="text-muted-foreground mb-4 line-clamp-2">{club.description}</p>
                     
+                    {/* Tags */}
+                    {clubTags[club.id] && clubTags[club.id].length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-4">
+                        {clubTags[club.id].map((tag) => (
+                          <Tag key={tag.id} tag={tag} />
+                        ))}
+                      </div>
+                    )}
+                    
                     <div className="space-y-2 mb-4">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Members:</span>
@@ -371,158 +408,169 @@ export default function StudentExploreClubs() {
             </div>
           )}
 
-          {/* Club Details Modal */}
-          {selectedClub && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-              <div className="bg-background rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-border">
-                <div className="flex justify-between items-start mb-4">
-                  <h2 className="text-2xl font-bold text-foreground">{selectedClub.name}</h2>
-                  <button
-                    onClick={closeClubDetails}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {loadingDetails ? (
-                  <div className="flex justify-center items-center h-32">
-                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+                      {/* Club Details Modal */}
+            {selectedClub && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                <div className="bg-background rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-border">
+                  <div className="flex justify-between items-start mb-4">
+                    <h2 className="text-2xl font-bold text-foreground">{selectedClub.name}</h2>
+                    <button
+                      onClick={closeClubDetails}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Club Description */}
+              {loadingDetails ? (
+                <div className="flex justify-center items-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Club Description */}
+                  <div>
+                    <h3 className="font-semibold text-foreground mb-2">Description</h3>
+                    <p className="text-muted-foreground">{selectedClub.description}</p>
+                  </div>
+                  
+                  {/* Tags */}
+                  {clubTags[selectedClub.id] && clubTags[selectedClub.id].length > 0 && (
                     <div>
-                      <h3 className="font-semibold text-foreground mb-2">Description</h3>
-                      <p className="text-muted-foreground">{selectedClub.description}</p>
-                    </div>
-                    
-                    {/* Club Stats */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="card p-3">
-                        <h3 className="font-semibold text-muted-foreground mb-1 text-sm">Members</h3>
-                        <p className="text-foreground text-lg font-bold">{selectedClub.studentIds?.length || 0}</p>
-                      </div>
-                      <div className="card p-3">
-                        <h3 className="font-semibold text-muted-foreground mb-1 text-sm">Created</h3>
-                        <p className="text-foreground text-sm">{formatDate(selectedClub.createdAt)}</p>
-                      </div>
-                      <div className="card p-3">
-                        <h3 className="font-semibold text-muted-foreground mb-1 text-sm">Join Type</h3>
-                        <p className="text-foreground text-sm">
-                          {selectedClub.joinType === "request" ? "Request Required" : "Open Join"}
-                        </p>
-                      </div>
-                      <div className="card p-3">
-                        <h3 className="font-semibold text-muted-foreground mb-1 text-sm">Status</h3>
-                        <p className="text-foreground text-sm">
-                          {userClubs.some(c => c.id === selectedClub.id) ? "✅ Joined" : "🌟 Available"}
-                        </p>
+                      <h3 className="font-semibold text-foreground mb-2">Tags</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {clubTags[selectedClub.id].map((tag) => (
+                          <Tag key={tag.id} tag={tag} />
+                        ))}
                       </div>
                     </div>
+                  )}
+                  
+                  {/* Club Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="card p-3">
+                      <h3 className="font-semibold text-muted-foreground mb-1 text-sm">Members</h3>
+                      <p className="text-foreground text-lg font-bold">{selectedClub.studentIds?.length || 0}</p>
+                    </div>
+                    <div className="card p-3">
+                      <h3 className="font-semibold text-muted-foreground mb-1 text-sm">Created</h3>
+                      <p className="text-foreground text-sm">{formatDate(selectedClub.createdAt)}</p>
+                    </div>
+                    <div className="card p-3">
+                      <h3 className="font-semibold text-muted-foreground mb-1 text-sm">Join Type</h3>
+                      <p className="text-foreground text-sm">
+                        {selectedClub.joinType === "request" ? "Request Required" : "Open Join"}
+                      </p>
+                    </div>
+                    <div className="card p-3">
+                      <h3 className="font-semibold text-muted-foreground mb-1 text-sm">Status</h3>
+                      <p className="text-foreground text-sm">
+                        {userClubs.some(c => c.id === selectedClub.id) ? "✅ Joined" : "🌟 Available"}
+                      </p>
+                    </div>
+                  </div>
 
-                    {/* Join Deadline Warning */}
-                    {selectedClub.joinDeadline && (
-                      <div className={`p-3 rounded-lg ${
-                        new Date() > new Date(selectedClub.joinDeadline) 
-                          ? "bg-destructive/10 border border-destructive/20" 
-                          : "bg-warning/10 border border-warning/20"
-                      }`}>
-                        <p className="text-sm">
-                          <strong>Join Deadline:</strong> {new Date(selectedClub.joinDeadline).toLocaleDateString()}
-                          {new Date() > new Date(selectedClub.joinDeadline) && " (Deadline has passed)"}
-                        </p>
-                      </div>
-                    )}
+                  {/* Join Deadline Warning */}
+                  {selectedClub.joinDeadline && (
+                    <div className={`p-3 rounded-lg ${
+                      new Date() > new Date(selectedClub.joinDeadline) 
+                        ? "bg-destructive/10 border border-destructive/20" 
+                        : "bg-warning/10 border border-warning/20"
+                    }`}>
+                      <p className="text-sm">
+                        <strong>Join Deadline:</strong> {new Date(selectedClub.joinDeadline).toLocaleDateString()}
+                        {new Date() > new Date(selectedClub.joinDeadline) && " (Deadline has passed)"}
+                      </p>
+                    </div>
+                  )}
 
-                    {/* Teacher Sponsor */}
-                    {clubDetails?.teacher && (
-                      <div>
-                        <h3 className="font-semibold text-foreground mb-3">👨‍🏫 Teacher Sponsor</h3>
-                        <div className="card p-4">
-                          <div className="flex items-center space-x-3">
-                            {clubDetails.teacher.photoURL ? (
-                              <Image
-                                src={clubDetails.teacher.photoURL}
-                                alt="Teacher"
-                                width={48}
-                                height={48}
-                                className="w-12 h-12 rounded-full border-2 border-border"
-                                unoptimized
-                              />
-                            ) : (
-                              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white font-bold">
-                                {(clubDetails.teacher.displayName || "?").charAt(0).toUpperCase()}
-                              </div>
-                            )}
-                            <div>
-                              <p className="text-foreground font-semibold">
-                                {clubDetails.teacher.displayName || clubDetails.teacher.name || "Unknown Teacher"}
-                              </p>
-                              <p className="text-muted-foreground text-sm">
-                                {clubDetails.teacher.email}
-                              </p>
+                  {/* Teacher Sponsor */}
+                  {clubDetails?.teacher && (
+                    <div>
+                      <h3 className="font-semibold text-foreground mb-3">👨‍🏫 Teacher Sponsor</h3>
+                      <div className="card p-4">
+                        <div className="flex items-center space-x-3">
+                          {clubDetails.teacher.photoURL ? (
+                            <Image
+                              src={clubDetails.teacher.photoURL}
+                              alt="Teacher"
+                              width={48}
+                              height={48}
+                              className="w-12 h-12 rounded-full border-2 border-border"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white font-bold">
+                              {(clubDetails.teacher.displayName || "?").charAt(0).toUpperCase()}
                             </div>
+                          )}
+                          <div>
+                            <p className="text-foreground font-semibold">
+                              {clubDetails.teacher.displayName || clubDetails.teacher.name || "Unknown Teacher"}
+                            </p>
+                            <p className="text-muted-foreground text-sm">
+                              {clubDetails.teacher.email}
+                            </p>
                           </div>
                         </div>
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {/* Students List */}
-                    {clubDetails?.students && clubDetails.students.length > 0 && (
-                      <div>
-                        <h3 className="font-semibold text-foreground mb-3">👥 Current Members ({clubDetails.students.length})</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto">
-                          {clubDetails.students.map((student) => (
-                            <div key={student.id} className="card p-3">
-                              <div className="flex items-center space-x-3">
-                                {student.photoURL ? (
-                                  <Image
-                                    src={student.photoURL}
-                                    crossOrigin="anonymous"
-                                    alt="Student"
-                                    width={32}
-                                    height={32}
-                                    className="w-8 h-8 rounded-full border border-border"
-                                    unoptimized
-                                  />
-                                ) : (
-                                  <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white font-bold text-xs">
-                                    {(student.displayName || "?").charAt(0).toUpperCase()}
-                                  </div>
-                                )}
-                                <div>
-                                  <p className="text-foreground text-sm font-medium">
-                                    {student.displayName || student.email}
-                                  </p>
+                  {/* Students List */}
+                  {clubDetails?.students && clubDetails.students.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold text-foreground mb-3">👥 Current Members ({clubDetails.students.length})</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto">
+                        {clubDetails.students.map((student) => (
+                          <div key={student.id} className="card p-3">
+                            <div className="flex items-center space-x-3">
+                              {student.photoURL ? (
+                                <Image
+                                  src={student.photoURL}
+                                  crossOrigin="anonymous"
+                                  alt="Student"
+                                  width={32}
+                                  height={32}
+                                  className="w-8 h-8 rounded-full border border-border"
+                                  unoptimized
+                                />
+                              ) : (
+                                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white font-bold text-xs">
+                                  {(student.displayName || "?").charAt(0).toUpperCase()}
                                 </div>
+                              )}
+                              <div>
+                                <p className="text-foreground text-sm font-medium">
+                                  {student.displayName || student.email}
+                                </p>
                               </div>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {/* Join Button */}
-                    {!userClubs.some(c => c.id === selectedClub.id) && (
-                      <div className="flex gap-3 pt-4 border-t border-border">
-                        <button
-                          onClick={() => handleJoinClub(selectedClub.id)}
-                          disabled={!canJoinClub(selectedClub).canJoin || joiningClub === selectedClub.id}
-                          className={`flex-1 ${getJoinButtonClass(selectedClub)}`}
-                          title={!canJoinClub(selectedClub).canJoin ? canJoinClub(selectedClub).reason : ""}
-                        >
-                          {getJoinButtonText(selectedClub)}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                  {/* Join Button */}
+                  {!userClubs.some(c => c.id === selectedClub.id) && (
+                    <div className="flex gap-3 pt-4 border-t border-border">
+                      <button
+                        onClick={() => handleJoinClub(selectedClub.id)}
+                        disabled={!canJoinClub(selectedClub).canJoin || joiningClub === selectedClub.id}
+                        className={`flex-1 ${getJoinButtonClass(selectedClub)}`}
+                        title={!canJoinClub(selectedClub).canJoin ? canJoinClub(selectedClub).reason : ""}
+                      >
+                        {getJoinButtonText(selectedClub)}
+                      </button>
+                    </div>
+                                     )}
+                 </div>
+               )}
+               </div>
+             </div>
+            )}
         </div>
       </div>
     </ProtectedRoute>

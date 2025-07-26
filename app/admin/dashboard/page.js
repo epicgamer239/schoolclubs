@@ -4,29 +4,28 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { firestore } from "@/firebase";
-import {
-  doc, getDoc, collection,
-  getDocs, query, where, orderBy, limit
-} from "firebase/firestore";
-import DashboardTopBar from "../../../components/DashboardTopBar";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
+import DashboardTopBar from "../../../components/DashboardTopBar";
+import db from "../../../utils/database";
+import { cacheUtils } from "../../../utils/cache";
 
 export default function AdminDashboard() {
   const [school, setSchool] = useState(null);
-  const [stats, setStats] = useState({ 
-    students: 0, 
-    teachers: 0, 
-    clubs: 0, 
+  const [stats, setStats] = useState({
+    students: 0,
+    teachers: 0,
+    clubs: 0,
     totalMemberships: 0,
     activeClubs: 0,
     pendingRequests: 0,
     pendingSchoolRequests: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [otherAdmins, setOtherAdmins] = useState([]);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { userData, loading: authLoading } = useAuth();
 
@@ -35,50 +34,80 @@ export default function AdminDashboard() {
       if (!userData?.uid || !userData?.schoolId) return;
 
       try {
-        // Fetch school data
-        const schoolDoc = await getDoc(doc(firestore, "schools", userData.schoolId));
-        if (schoolDoc.exists()) {
-          const schoolData = { id: userData.schoolId, ...schoolDoc.data() };
-          setSchool(schoolData);
-        } else {
-          console.error("School not found");
+        // Check cache for dashboard stats first
+        const cachedStats = cacheUtils.getCachedDashboardStats(userData.schoolId);
+        if (cachedStats) {
+          setStats(cachedStats.stats);
+          setSchool(cachedStats.school);
+          setRecentActivity(cachedStats.recentActivity);
+          setOtherAdmins(cachedStats.otherAdmins);
           setLoading(false);
           return;
         }
 
-        const usersRef = collection(firestore, "users");
-        const clubsRef = collection(firestore, "clubs");
-        const requestsRef = collection(firestore, "joinRequests");
-        const schoolRequestsRef = collection(firestore, "schoolJoinRequests");
+        // Fetch school data with caching
+        const schoolData = await db.getDocument("schools", userData.schoolId, true);
+        setSchool(schoolData);
 
-        // Fetch all data in parallel
+        // Fetch all data in parallel with caching
         const [studentsSnap, teachersSnap, clubsSnap, requestsSnap, adminsSnap, schoolRequestsSnap] = await Promise.all([
-          getDocs(query(usersRef, where("schoolId", "==", userData.schoolId), where("role", "==", "student"))),
-          getDocs(query(usersRef, where("schoolId", "==", userData.schoolId), where("role", "==", "teacher"))),
-          getDocs(query(clubsRef, where("schoolId", "==", userData.schoolId))),
-          getDocs(query(requestsRef, where("status", "==", "pending"))),
-          getDocs(query(usersRef, where("schoolId", "==", userData.schoolId), where("role", "==", "admin"))),
-          getDocs(query(schoolRequestsRef, where("schoolId", "==", userData.schoolId), where("status", "==", "pending")))
+          db.getDocuments("users", {
+            whereClauses: [
+              { field: "schoolId", operator: "==", value: userData.schoolId },
+              { field: "role", operator: "==", value: "student" }
+            ],
+            useCache: true
+          }),
+          db.getDocuments("users", {
+            whereClauses: [
+              { field: "schoolId", operator: "==", value: userData.schoolId },
+              { field: "role", operator: "==", value: "teacher" }
+            ],
+            useCache: true
+          }),
+          db.getDocuments("clubs", {
+            whereClauses: [{ field: "schoolId", operator: "==", value: userData.schoolId }],
+            useCache: true
+          }),
+          db.getDocuments("joinRequests", {
+            whereClauses: [{ field: "status", operator: "==", value: "pending" }],
+            useCache: true
+          }),
+          db.getDocuments("users", {
+            whereClauses: [
+              { field: "schoolId", operator: "==", value: userData.schoolId },
+              { field: "role", operator: "==", value: "admin" }
+            ],
+            useCache: true
+          }),
+          db.getDocuments("schoolJoinRequests", {
+            whereClauses: [
+              { field: "schoolId", operator: "==", value: userData.schoolId },
+              { field: "status", operator: "==", value: "pending" }
+            ],
+            useCache: true
+          })
         ]);
 
-        const clubs = clubsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const clubs = clubsSnap.documents;
         const totalMemberships = clubs.reduce((sum, club) => sum + (club.studentIds?.length || 0), 0);
         const activeClubs = clubs.filter(club => (club.studentIds?.length || 0) > 0).length;
 
         // Get other admins (excluding current user)
-        const allAdmins = adminsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const allAdmins = adminsSnap.documents;
         const otherAdminsList = allAdmins.filter(admin => admin.uid !== userData.uid);
         setOtherAdmins(otherAdminsList);
 
-        setStats({
-          students: studentsSnap.size,
-          teachers: teachersSnap.size,
-          clubs: clubsSnap.size,
+        const newStats = {
+          students: studentsSnap.documents.length,
+          teachers: teachersSnap.documents.length,
+          clubs: clubsSnap.documents.length,
           totalMemberships,
           activeClubs,
-          pendingRequests: requestsSnap.size,
-          pendingSchoolRequests: schoolRequestsSnap.size
-        });
+          pendingRequests: requestsSnap.documents.length,
+          pendingSchoolRequests: schoolRequestsSnap.documents.length
+        };
+        setStats(newStats);
 
         // Get recent activity (recently created clubs)
         const recentClubs = clubs
@@ -90,6 +119,14 @@ export default function AdminDashboard() {
           })
           .slice(0, 5);
         setRecentActivity(recentClubs);
+
+        // Cache the dashboard data
+        cacheUtils.cacheDashboardStats(userData.schoolId, {
+          stats: newStats,
+          school: schoolData,
+          recentActivity: recentClubs,
+          otherAdmins: otherAdminsList
+        });
 
         setLoading(false);
       } catch (error) {
@@ -103,16 +140,7 @@ export default function AdminDashboard() {
     }
   }, [userData, authLoading]);
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return "Unknown";
-    if (timestamp.toDate) {
-      return timestamp.toDate().toLocaleDateString();
-    }
-    if (timestamp instanceof Date) {
-      return timestamp.toLocaleDateString();
-    }
-    return new Date(timestamp).toLocaleDateString();
-  };
+
 
   const getMembershipPercentage = () => {
     if (stats.students === 0) return 0;
@@ -166,7 +194,7 @@ export default function AdminDashboard() {
     <ProtectedRoute requiredRole="admin">
       <div className="min-h-screen bg-background">
         <DashboardTopBar title="Admin Dashboard" />
-        
+
         <div className="container">
           {/* Header Section */}
           <div className="mb-8">
@@ -179,48 +207,13 @@ export default function AdminDashboard() {
                 <span>Teacher Code: <code className="bg-muted px-3 py-1 rounded-lg text-sm font-mono border border-border">{school.teacherJoinCode}</code></span>
               </div>
             </div>
-            
-            {/* School Details */}
-            {school.address && (
-              <div className="mt-6 card p-6">
-                <h3 className="text-lg font-semibold mb-4">School Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-                  <div>
-                    <span className="text-muted-foreground font-medium">Address:</span>
-                    <p className="text-foreground font-medium">{school.address}</p>
-                    <p className="text-foreground font-medium">{school.city}, {school.state} {school.zipCode}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground font-medium">Contact:</span>
-                    {school.phone && <p className="text-foreground font-medium">{school.phone}</p>}
-                    {school.website && (
-                      <p className="text-foreground font-medium">
-                        <a href={school.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors">
-                          {school.website}
-                        </a>
-                      </p>
-                    )}
-                  </div>
-                  {school.schoolType && (
-                    <div>
-                      <span className="text-muted-foreground font-medium">Type:</span>
-                      <p className="text-foreground font-medium">{school.schoolType}</p>
-                    </div>
-                  )}
-                  {school.gradeLevels && (
-                    <div>
-                      <span className="text-muted-foreground font-medium">Grade Levels:</span>
-                      <p className="text-foreground font-medium">{school.gradeLevels}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+
+
           </div>
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div 
+            <div
               className="card p-6 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
               onClick={() => router.push("/admin/students")}
             >
@@ -237,7 +230,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div 
+            <div
               className="card p-6 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
               onClick={() => router.push("/admin/teachers")}
             >
@@ -254,7 +247,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div 
+            <div
               className="card p-6 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
               onClick={() => router.push("/admin/clubs")}
             >
@@ -286,10 +279,72 @@ export default function AdminDashboard() {
             </div>
           </div>
 
+          {/* Quick Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <div
+              className="card p-6 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+              onClick={() => router.push("/admin/tags")}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Manage Tags</p>
+                  <p className="text-lg font-semibold text-foreground">Create & Edit Tags</p>
+                </div>
+                <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="card p-6 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+              onClick={() => router.push("/admin/school")}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">School Settings</p>
+                  <p className="text-lg font-semibold text-foreground">Manage School</p>
+                </div>
+                <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="card p-6 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+              onClick={() => router.push("/admin/join-requests")}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Join Requests</p>
+                  <p className="text-lg font-semibold text-foreground">Review Requests</p>
+                </div>
+                <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Engagement Overview */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold mb-4">Engagement Overview</h3>
+            <div
+              className="card p-6 cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+              onClick={() => router.push("/admin/engagement-insights")}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Engagement Overview</h3>
+                <svg className="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
@@ -297,8 +352,8 @@ export default function AdminDashboard() {
                     <span className="text-foreground font-semibold">{getMembershipPercentage()}%</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                    <div 
-                      className="bg-primary h-2 rounded-full transition-all duration-500" 
+                    <div
+                      className="bg-primary h-2 rounded-full transition-all duration-500"
                       style={{ width: `${Math.min(getMembershipPercentage(), 100)}%` }}
                     ></div>
                   </div>
@@ -309,8 +364,8 @@ export default function AdminDashboard() {
                     <span className="text-foreground font-semibold">{getActiveClubsPercentage()}%</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                    <div 
-                      className="bg-success h-2 rounded-full transition-all duration-500" 
+                    <div
+                      className="bg-success h-2 rounded-full transition-all duration-500"
                       style={{ width: `${Math.min(getActiveClubsPercentage(), 100)}%` }}
                     ></div>
                   </div>
@@ -339,14 +394,14 @@ export default function AdminDashboard() {
                       <p className="text-sm text-muted-foreground">{stats.pendingRequests} pending</p>
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => router.push("/admin/join-requests")}
                     className="btn-outline text-sm"
                   >
                     Review
                   </button>
                 </div>
-                
+
                 <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-secondary/10 rounded-full flex items-center justify-center">
@@ -359,7 +414,7 @@ export default function AdminDashboard() {
                       <p className="text-sm text-muted-foreground">{stats.pendingSchoolRequests} pending</p>
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => router.push("/admin/school-join-requests")}
                     className="btn-outline text-sm"
                   >
@@ -381,10 +436,10 @@ export default function AdminDashboard() {
                       <div>
                         <p className="font-medium">{club.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          Created {formatDate(club.createdAt)} • {club.studentIds?.length || 0} members
+                          {club.studentIds?.length || 0} members
                         </p>
                       </div>
-                      <button 
+                      <button
                         onClick={() => router.push(`/admin/clubs/${club.id}`)}
                         className="btn-ghost text-sm"
                       >

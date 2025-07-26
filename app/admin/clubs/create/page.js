@@ -6,31 +6,38 @@ import { addDoc, collection, serverTimestamp, query, where, getDocs } from "fire
 import ProtectedRoute from "../../../../components/ProtectedRoute";
 import { useAuth } from "../../../../components/AuthContext";
 import DashboardTopBar from "../../../../components/DashboardTopBar";
+import Modal from "../../../../components/Modal";
+import { useModal } from "../../../../utils/useModal";
 
 export default function AdminCreateClubPage() {
   const [clubName, setClubName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
+  const [selectedTags, setSelectedTags] = useState([]);
   const [teachers, setTeachers] = useState([]);
+  const [availableTags, setAvailableTags] = useState([]);
+  const [loadingTags, setLoadingTags] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
   const router = useRouter();
   const { userData } = useAuth();
+  const { modalState, showAlert, closeModal } = useModal();
 
-  // Fetch teachers from the school
+  // Fetch teachers and tags from the school
   useEffect(() => {
-    const fetchTeachers = async () => {
+    const fetchData = async () => {
       if (!userData?.schoolId) return;
 
       try {
-        const q = query(
+        // Fetch teachers
+        const teachersQuery = query(
           collection(firestore, "users"),
           where("schoolId", "==", userData.schoolId),
           where("role", "==", "teacher")
         );
-        const querySnapshot = await getDocs(q);
-        const teacherList = querySnapshot.docs.map((doc) => ({
+        const teachersSnapshot = await getDocs(teachersQuery);
+        const teacherList = teachersSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
@@ -44,15 +51,30 @@ export default function AdminCreateClubPage() {
 
         setTeachers(sortedTeachers);
         setLoadingTeachers(false);
+
+        // Fetch tags
+        const tagsQuery = query(
+          collection(firestore, "tags"),
+          where("schoolId", "==", userData.schoolId)
+        );
+        const tagsSnapshot = await getDocs(tagsQuery);
+        const tagsList = tagsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        setAvailableTags(tagsList);
+        setLoadingTags(false);
       } catch (error) {
-        console.error("Error fetching teachers:", error);
-        setError("Failed to load teachers. Please try again.");
+        console.error("Error fetching data:", error);
+        setError("Failed to load data. Please try again.");
         setLoadingTeachers(false);
+        setLoadingTags(false);
       }
     };
 
     if (userData) {
-      fetchTeachers();
+      fetchData();
     }
   }, [userData]);
 
@@ -93,6 +115,7 @@ export default function AdminCreateClubPage() {
         description: description.trim(),
         schoolId: userData.schoolId,
         studentIds: [],
+        tagIds: selectedTags,
         createdAt: serverTimestamp(),
       };
 
@@ -103,7 +126,7 @@ export default function AdminCreateClubPage() {
 
       const docRef = await addDoc(collection(firestore, "clubs"), clubData);
 
-      alert("Club created successfully!");
+      showAlert("Success", "Club created successfully!");
       router.push("/admin/clubs");
     } catch (err) {
       console.error("Error creating club:", err);
@@ -197,6 +220,52 @@ export default function AdminCreateClubPage() {
                   </p>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-semibold mb-3 text-foreground">
+                    Tags (Optional)
+                  </label>
+                  {loadingTags ? (
+                    <div className="input text-muted-foreground">
+                      Loading tags...
+                    </div>
+                  ) : availableTags.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-2">
+                        {availableTags.map((tag) => (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            onClick={() => {
+                              if (selectedTags.includes(tag.id)) {
+                                setSelectedTags(selectedTags.filter(id => id !== tag.id));
+                              } else {
+                                setSelectedTags([...selectedTags, tag.id]);
+                              }
+                            }}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all duration-200 ${
+                              selectedTags.includes(tag.id)
+                                ? 'border-transparent text-white'
+                                : 'border-border text-foreground hover:border-primary'
+                            }`}
+                            style={{
+                              backgroundColor: selectedTags.includes(tag.id) ? tag.color : 'transparent'
+                            }}
+                          >
+                            {tag.name}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Select tags to help categorize this club. You can manage tags in the admin dashboard.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">
+                      No tags available. Create tags in the admin dashboard first.
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-4 pt-6">
                   <button
                     type="submit"
@@ -231,6 +300,14 @@ export default function AdminCreateClubPage() {
           </div>
         </div>
       </div>
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        onConfirm={closeModal}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+      />
     </ProtectedRoute>
   );
 } 
