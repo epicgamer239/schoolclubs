@@ -166,6 +166,9 @@ class Cache {
 // Global cache instance
 const globalCache = new Cache();
 
+// Export globalCache for use in other files
+export { globalCache };
+
 // Cache middleware for API routes
 export const cacheMiddleware = (ttl = CACHE_CONFIG.DEFAULT_TTL) => {
   return async (req, res, next) => {

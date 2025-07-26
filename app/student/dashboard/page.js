@@ -6,6 +6,7 @@ import { firestore } from "@/firebase";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import { useAuth } from "../../../components/AuthContext";
 import DashboardTopBar from "../../../components/DashboardTopBar";
+import Modal from "../../../components/Modal";
 import { useModal } from "../../../utils/useModal";
 import db from "../../../utils/database";
 import { cacheUtils } from "../../../utils/cache";
