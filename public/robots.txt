@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://clubs4community.app
+
+# Sitemaps
+Sitemap: https://clubs4community.app/sitemap.xml

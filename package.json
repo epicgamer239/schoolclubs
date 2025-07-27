@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "next-sitemap",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
@@ -28,6 +29,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "next": "^15.3.2",
+    "next-sitemap": "^4.2.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "redis": "^4.6.12"
