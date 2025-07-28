@@ -10,9 +10,6 @@ module.exports = {
         disallow: ['/admin/', '/student/dashboard/', '/teacher/dashboard/', '/api/'],
       },
     ],
-    additionalSitemaps: [
-      'https://clubs4community.app/sitemap.xml',
-    ],
   },
   exclude: [
     '/admin/*',
