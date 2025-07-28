@@ -32,7 +32,8 @@
     "next-sitemap": "^4.2.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "redis": "^4.6.12"
+    "redis": "^4.6.12",
+    "sharp": "^0.34.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

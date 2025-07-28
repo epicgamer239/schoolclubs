@@ -1,4 +1,13 @@
+# *
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /student/dashboard/
+Disallow: /teacher/dashboard/
+Disallow: /api/
 
+# Host
+Host: https://clubs4community.app
+
+# Sitemaps
 Sitemap: https://clubs4community.app/sitemap.xml
