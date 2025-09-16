@@ -203,6 +203,29 @@ service cloud.firestore {
                       );
     }
     
+    // Messages collection - Contains chat messages
+    match /messages/{messageId} {
+      // Allow read: Anyone can read messages (for public chat)
+      allow read: if true;
+      
+      // Allow create: Anyone can create messages (for public chat)
+      allow create: if request.resource.data.keys().hasAll(['text', 'sender', 'timestamp', 'isSystem']) &&
+                      request.resource.data.text is string &&
+                      request.resource.data.text.size() > 0 &&
+                      request.resource.data.text.size() <= 1000 &&
+                      request.resource.data.sender is string &&
+                      request.resource.data.sender.size() > 0 &&
+                      request.resource.data.sender.size() <= 100 &&
+                      request.resource.data.timestamp is timestamp &&
+                      request.resource.data.isSystem is bool;
+      
+      // Allow update: No updates allowed (messages are immutable)
+      allow update: if false;
+      
+      // Allow delete: No deletes allowed (messages are permanent)
+      allow delete: if false;
+    }
+    
     // Deny all other collections and documents
     match /{document=**} {
       allow read, write: if false;
