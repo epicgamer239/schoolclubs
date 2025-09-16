@@ -264,7 +264,7 @@ export default function WorkPage() {
                     {!message.isSystem && message.sender !== username && (
                       <div className="text-xs text-gray-500 mb-1">{message.sender}</div>
                     )}
-                    <div className="text-sm">{message.text}</div>
+                    <div className="text-sm whitespace-pre-wrap break-words">{message.text}</div>
                     <div className="text-xs opacity-70 mt-1">
                       {message.timestamp}
                     </div>
