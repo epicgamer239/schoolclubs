@@ -20,15 +20,15 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "BRHS Utilities",
-  description: "Useful Applications for BRHS",
+  title: "Inbox - 1002167@lcps.org - Loudoun County Public Schools Mail",
+  description: "Loudoun County Public Schools Email System",
   icons: {
     icon: [
-      { url: '/spartan.png', sizes: '32x32', type: 'image/png' },
-      { url: '/spartan.png', sizes: '16x16', type: 'image/png' },
+      { url: '/gmail.ico', sizes: '32x32', type: 'image/x-icon' },
+      { url: '/gmail.ico', sizes: '16x16', type: 'image/x-icon' },
     ],
     apple: [
-      { url: '/spartan.png', sizes: '180x180', type: 'image/png' },
+      { url: '/gmail.ico', sizes: '180x180', type: 'image/x-icon' },
     ],
   },
   other: {
