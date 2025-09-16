@@ -118,12 +118,22 @@ export default function WorkPage() {
         setIsLoading(false);
         
         // Update unread count based on new messages
-        if (lastSeenMessageId && messagesData.length > 0) {
-          const lastSeenIndex = messagesData.findIndex(msg => msg.id === lastSeenMessageId);
-          const newMessages = lastSeenIndex >= 0 ? messagesData.slice(lastSeenIndex + 1) : messagesData;
-          const unreadMessages = newMessages.filter(msg => msg.sender !== username);
-          setUnreadCount(unreadMessages.length);
-          updateTabTitle(unreadMessages.length);
+        if (messagesData.length > 0) {
+          if (lastSeenMessageId) {
+            const lastSeenIndex = messagesData.findIndex(msg => msg.id === lastSeenMessageId);
+            const newMessages = lastSeenIndex >= 0 ? messagesData.slice(lastSeenIndex + 1) : messagesData;
+            const unreadMessages = newMessages.filter(msg => msg.sender !== username);
+            setUnreadCount(unreadMessages.length);
+            updateTabTitle(unreadMessages.length);
+          } else {
+            // First time loading - mark all messages as read
+            const lastMessage = messagesData[messagesData.length - 1];
+            if (lastMessage) {
+              setLastSeenMessageId(lastMessage.id);
+              setUnreadCount(0);
+              updateTabTitle(0);
+            }
+          }
         }
       },
       (error) => {
@@ -135,15 +145,34 @@ export default function WorkPage() {
     return () => unsubscribe();
   }, [isJoined, lastSeenMessageId, username]);
 
-  // Mark messages as read when user is actively viewing
+  // Mark messages as read when user scrolls to bottom or is actively viewing
   useEffect(() => {
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage && lastMessage.id !== lastSeenMessageId) {
-        setLastSeenMessageId(lastMessage.id);
-        setUnreadCount(0);
-        updateTabTitle(0);
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  // Mark messages as read when user scrolls to bottom
+  useEffect(() => {
+    const handleScroll = () => {
+      const messagesContainer = document.querySelector('.messages-container');
+      if (messagesContainer) {
+        const isAtBottom = messagesContainer.scrollTop + messagesContainer.clientHeight >= messagesContainer.scrollHeight - 10;
+        if (isAtBottom && messages.length > 0) {
+          const lastMessage = messages[messages.length - 1];
+          if (lastMessage && lastMessage.id !== lastSeenMessageId) {
+            setLastSeenMessageId(lastMessage.id);
+            setUnreadCount(0);
+            updateTabTitle(0);
+          }
+        }
       }
+    };
+
+    const messagesContainer = document.querySelector('.messages-container');
+    if (messagesContainer) {
+      messagesContainer.addEventListener('scroll', handleScroll);
+      return () => messagesContainer.removeEventListener('scroll', handleScroll);
     }
   }, [messages, lastSeenMessageId]);
 
@@ -152,6 +181,13 @@ export default function WorkPage() {
     const handleFocus = () => {
       setUnreadCount(0);
       updateTabTitle(0);
+      // Mark all current messages as read
+      if (messages.length > 0) {
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage) {
+          setLastSeenMessageId(lastMessage.id);
+        }
+      }
     };
 
     const handleBlur = () => {
@@ -165,7 +201,7 @@ export default function WorkPage() {
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
     };
-  }, []);
+  }, [messages]);
 
   // Add leave message when page is closed/refreshed
   useEffect(() => {
@@ -358,7 +394,7 @@ export default function WorkPage() {
       {/* Work Area */}
       <div className="flex-1 flex flex-col p-4">
         <div className="flex-1 bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="h-full overflow-y-auto p-4 space-y-3">
+          <div className="h-full overflow-y-auto p-4 space-y-3 messages-container">
             {isLoading ? (
               <div className="flex justify-center items-center h-full">
                 <div className="text-gray-500">Loading workspace...</div>
