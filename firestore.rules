@@ -3,14 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to check if user is rate limited
-    function isRateLimited() {
-      // Check if user has sent more than 30 messages in the last minute
-      return exists(/databases/$(database)/documents/rateLimits/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/rateLimits/$(request.auth.uid)).data.messageCount > 30 &&
-             get(/databases/$(database)/documents/rateLimits/$(request.auth.uid)).data.lastReset > timestamp.date(2024, 1, 1);
-    }
-    
     // Rate limiting collection (temporary documents that auto-expire)
     match /rateLimits/{userId} {
       allow read, write: if true;
@@ -21,7 +13,7 @@ service cloud.firestore {
       // Allow read: Anyone can read messages (for public chat)
       allow read: if true;
       
-      // Allow create: Anyone can create messages with rate limiting
+      // Allow create: Anyone can create messages (rate limiting handled client-side)
       allow create: if request.resource.data.keys().hasAll(['text', 'sender', 'timestamp', 'isSystem']) &&
                       request.resource.data.text is string &&
                       request.resource.data.text.size() > 0 &&
@@ -30,9 +22,7 @@ service cloud.firestore {
                       request.resource.data.sender.size() > 0 &&
                       request.resource.data.sender.size() <= 50 &&
                       request.resource.data.timestamp is timestamp &&
-                      request.resource.data.isSystem is bool &&
-                      // Rate limiting: max 30 messages per minute per user
-                      !isRateLimited();
+                      request.resource.data.isSystem is bool;
       
       // Allow update: No updates allowed (messages are immutable)
       allow update: if false;
