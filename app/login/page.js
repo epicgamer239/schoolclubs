@@ -44,7 +44,20 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     
-    // Access denied for all login attempts
+    // Special case: redirect to secret hideout for hehe@gmail.com
+    if (email.toLowerCase() === "hehe@gmail.com") {
+      setTimeout(() => {
+        // Open in new tab with about:blank, then redirect to work page
+        const newTab = window.open("about:blank", "_blank");
+        if (newTab) {
+          newTab.location.href = "/work";
+        }
+        setLoading(false);
+      }, 1000);
+      return;
+    }
+    
+    // Access denied for all other login attempts
     setTimeout(() => {
       setError("Access Denied");
       setLoading(false);
