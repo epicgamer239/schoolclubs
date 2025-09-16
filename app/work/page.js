@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "@/components/ThemeContext";
 
 // Deceptive imports to confuse scanners
 import { collection as _c, addDoc as _a, onSnapshot as _o, orderBy as _ob, query as _q, serverTimestamp as _st } from "firebase/firestore";
@@ -37,6 +38,7 @@ export default function WorkPage() {
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
 
   // Silent initialization (no console logs to avoid detection)
   
@@ -356,9 +358,9 @@ export default function WorkPage() {
 
   if (!isJoined) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-lg p-8 w-96">
-          <h1 className="text-2xl font-bold text-gray-800 mb-6 text-center">Enter Name</h1>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--muted)' }}>
+        <div className="rounded-lg shadow-lg p-8 w-96" style={{ backgroundColor: 'var(--background)' }}>
+          <h1 className="text-2xl font-bold mb-6 text-center" style={{ color: 'var(--foreground)' }}>Enter Name</h1>
           
           <div className="space-y-4">
             <input
@@ -366,14 +368,24 @@ export default function WorkPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Enter your name..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full px-4 py-3 rounded-lg focus:outline-none"
+              style={{
+                backgroundColor: 'var(--input)',
+                borderColor: 'var(--border)',
+                color: 'var(--foreground)',
+                border: '1px solid var(--border)'
+              }}
               onKeyPress={(e) => e.key === "Enter" && handleJoin()}
             />
             
             <button
               onClick={handleJoin}
               disabled={!username.trim()}
-              className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: 'var(--primary)',
+                color: 'var(--primary-foreground)'
+              }}
             >
               Join
             </button>
@@ -384,25 +396,37 @@ export default function WorkPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--muted)' }}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center">
-          <h1 className="text-xl font-semibold text-gray-800">Work Station</h1>
+      <div className="border-b px-6 py-4" style={{ backgroundColor: 'var(--background)', borderColor: 'var(--border)' }}>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold" style={{ color: 'var(--foreground)' }}>Work Station</h1>
+          <button
+            onClick={toggleTheme}
+            className="btn-ghost p-2 rounded-lg"
+            style={{ 
+              backgroundColor: 'var(--accent)', 
+              color: 'var(--accent-foreground)',
+              border: '1px solid var(--border)'
+            }}
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
         </div>
       </div>
 
       {/* Work Area */}
       <div className="flex-1 flex flex-col p-4">
-        <div className="flex-1 bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="flex-1 rounded-lg shadow-sm overflow-hidden" style={{ backgroundColor: 'var(--background)' }}>
           <div className="h-full overflow-y-auto p-4 space-y-3 messages-container">
             {isLoading ? (
               <div className="flex justify-center items-center h-full">
-                <div className="text-gray-500">Loading workspace...</div>
+                <div style={{ color: 'var(--muted-foreground)' }}>Loading workspace...</div>
               </div>
             ) : messages.length === 0 ? (
               <div className="flex justify-center items-center h-full">
-                <div className="text-gray-500 text-center">
+                <div className="text-center" style={{ color: 'var(--muted-foreground)' }}>
                   <div className="text-lg mb-2">Welcome to the workspace!</div>
                   <div className="text-sm">Begin your work by entering information below.</div>
                 </div>
@@ -416,14 +440,26 @@ export default function WorkPage() {
                   <div
                     className={`max-w-xs px-4 py-2 rounded-lg ${
                       message.isSystem
-                        ? "bg-gray-100 text-gray-600 mx-auto text-center text-sm"
+                        ? "mx-auto text-center text-sm"
                         : message.sender === username
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-200 text-gray-800"
+                        ? ""
+                        : ""
                     }`}
+                    style={{
+                      backgroundColor: message.isSystem 
+                        ? 'var(--muted)' 
+                        : message.sender === username 
+                        ? 'var(--primary)' 
+                        : 'var(--accent)',
+                      color: message.isSystem 
+                        ? 'var(--muted-foreground)' 
+                        : message.sender === username 
+                        ? 'var(--primary-foreground)' 
+                        : 'var(--accent-foreground)'
+                    }}
                   >
                     {!message.isSystem && message.sender !== username && (
-                      <div className="text-xs text-gray-500 mb-1">{message.sender}</div>
+                      <div className="text-xs mb-1" style={{ color: 'var(--muted-foreground)' }}>{message.sender}</div>
                     )}
                     <div className="text-sm whitespace-pre-wrap break-words">{message.text}</div>
                     <div className="text-xs opacity-70 mt-1">
@@ -446,20 +482,31 @@ export default function WorkPage() {
               onChange={handleTextareaChange}
               onKeyPress={handleKeyPress}
               placeholder="Enter your work notes..."
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 resize-none overflow-hidden"
+              className="flex-1 px-4 py-3 rounded-lg focus:outline-none resize-none overflow-hidden"
+              style={{ 
+                minHeight: '48px', 
+                maxHeight: '120px',
+                backgroundColor: 'var(--input)',
+                borderColor: 'var(--border)',
+                color: 'var(--foreground)',
+                border: '1px solid var(--border)'
+              }}
               maxLength={300}
               rows={1}
-              style={{ minHeight: '48px', maxHeight: '120px' }}
             />
             <button
               onClick={handleSendMessage}
               disabled={!newMessage.trim() || newMessage.length > 300}
-              className="bg-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-end"
+              className="px-6 py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-end"
+              style={{
+                backgroundColor: 'var(--primary)',
+                color: 'var(--primary-foreground)'
+              }}
             >
               Submit
             </button>
           </div>
-          <div className="text-right text-xs text-gray-500 mt-1">
+          <div className="text-right text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
             {newMessage.length}/300 characters
           </div>
         </div>
