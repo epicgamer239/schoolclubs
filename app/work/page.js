@@ -36,10 +36,7 @@ export default function WorkPage() {
   const textareaRef = useRef(null);
   const router = useRouter();
 
-  // Deceptive console logs to confuse scanners
-  console.log("Work station initialized");
-  console.log("Task tracking enabled");
-  console.log("Productivity monitoring active");
+  // Silent initialization (no console logs to avoid detection)
   
   // Fake API calls to mask real traffic
   useEffect(() => {
@@ -61,8 +58,7 @@ export default function WorkPage() {
     const isBot = /bot|crawler|spider|scraper|scanner|automated|headless/i.test(userAgent);
     
     if (isBot) {
-      // Show fake content to bots
-      console.log("Bot detected, showing fake content");
+      // Show fake content to bots (silent detection)
       return;
     }
   }, []);
@@ -100,7 +96,7 @@ export default function WorkPage() {
 
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
-        console.log("Received snapshot with", snapshot.docs.length, "messages");
+        // Silent message processing
         const messagesData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
@@ -110,7 +106,7 @@ export default function WorkPage() {
         setIsLoading(false);
       },
       (error) => {
-        console.error("Error listening to messages:", error);
+        // Silent error handling
         setIsLoading(false);
       }
     );
@@ -141,7 +137,7 @@ export default function WorkPage() {
           expireAt: expirationTime
         });
       } catch (error) {
-        console.error("Error sending leave message:", error);
+        // Silent error handling
       }
     };
 
@@ -178,9 +174,9 @@ export default function WorkPage() {
             isSystem: _isSys,
             expireAt: expirationTime
           });
-          console.log("Work session started successfully");
+          // Silent work session start
         } catch (error) {
-          console.error("Error sending join message:", error);
+          // Silent error handling
           // Fallback: add join message locally
           const fallbackMessage = {
             id: Date.now(),
@@ -247,9 +243,9 @@ export default function WorkPage() {
             isSystem: _isSys,
             expireAt: expirationTime
           });
-          console.log("Note submitted successfully");
+          // Silent note submission
         } catch (error) {
-          console.error("Error sending message:", error);
+          // Silent error handling
           // Fallback: add message locally if Firestore fails
           const fallbackMessage = {
             id: Date.now(),
@@ -291,7 +287,7 @@ export default function WorkPage() {
           expireAt: expirationTime
         });
       } catch (error) {
-        console.error("Error sending leave message:", error);
+        // Silent error handling
       }
     }
     router.push("/");
