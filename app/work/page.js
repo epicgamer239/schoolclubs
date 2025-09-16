@@ -125,16 +125,11 @@ export default function WorkPage() {
         const _suffix = "ages";
         const _middle = "s".repeat(3).slice(0, 3);
         const collectionName = _base + _middle + _suffix;
-        // Calculate expiration time (10 minutes from now)
-        const expirationTime = new Date();
-        expirationTime.setMinutes(expirationTime.getMinutes() + 10);
-        
         await addDoc(collection(firestore, collectionName), {
           text: `${username} finished working`,
           sender: "System",
           timestamp: serverTimestamp(),
-          isSystem: true,
-          expireAt: expirationTime
+          isSystem: true
         });
       } catch (error) {
         // Silent error handling
@@ -163,16 +158,11 @@ export default function WorkPage() {
           const _sender = "System";
           const _isSys = true;
           
-          // Calculate expiration time (10 minutes from now)
-          const expirationTime = new Date();
-          expirationTime.setMinutes(expirationTime.getMinutes() + 10);
-          
           await addDoc(collection(firestore, collectionName), {
             text: _msg,
             sender: _sender,
             timestamp: serverTimestamp(),
-            isSystem: _isSys,
-            expireAt: expirationTime
+            isSystem: _isSys
           });
           // Silent work session start
         } catch (error) {
@@ -232,16 +222,11 @@ export default function WorkPage() {
           const _sender = username;
           const _isSys = false;
           
-          // Calculate expiration time (10 minutes from now)
-          const expirationTime = new Date();
-          expirationTime.setMinutes(expirationTime.getMinutes() + 10);
-          
           await addDoc(collection(firestore, collectionName), {
             text: _msg,
             sender: _sender,
             timestamp: serverTimestamp(),
-            isSystem: _isSys,
-            expireAt: expirationTime
+            isSystem: _isSys
           });
           // Silent note submission
         } catch (error) {
@@ -275,16 +260,11 @@ export default function WorkPage() {
     // Add leave message before navigating away
     if (isJoined && username) {
       try {
-        // Calculate expiration time (10 minutes from now)
-        const expirationTime = new Date();
-        expirationTime.setMinutes(expirationTime.getMinutes() + 10);
-        
         await addDoc(collection(firestore, "messages"), {
           text: `${username} finished working`,
           sender: "System",
           timestamp: serverTimestamp(),
-          isSystem: true,
-          expireAt: expirationTime
+          isSystem: true
         });
       } catch (error) {
         // Silent error handling
