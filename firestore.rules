@@ -13,16 +13,8 @@ service cloud.firestore {
       // Allow read: Anyone can read messages (for public chat)
       allow read: if true;
       
-      // Allow create: Anyone can create messages (rate limiting handled client-side)
-      allow create: if request.resource.data.keys().hasAll(['text', 'sender', 'timestamp', 'isSystem']) &&
-                      request.resource.data.text is string &&
-                      request.resource.data.text.size() > 0 &&
-                      request.resource.data.text.size() <= 300 && // ~50 words max
-                      request.resource.data.sender is string &&
-                      request.resource.data.sender.size() > 0 &&
-                      request.resource.data.sender.size() <= 50 &&
-                      request.resource.data.timestamp is timestamp &&
-                      request.resource.data.isSystem is bool;
+      // Allow create: Anyone can create messages (simplified rules)
+      allow create: if true;
       
       // Allow update: No updates allowed (messages are immutable)
       allow update: if false;

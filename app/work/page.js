@@ -120,11 +120,8 @@ export default function WorkPage() {
 
     const handleBeforeUnload = async () => {
       try {
-        // Advanced obfuscated collection name with multiple layers
-        const _base = "msg";
-        const _suffix = "ages";
-        const _middle = "s".repeat(3).slice(0, 3);
-        const collectionName = _base + _middle + _suffix;
+        // Use direct collection name for now
+        const collectionName = "messages";
         await addDoc(collection(firestore, collectionName), {
           text: `${username} finished working`,
           sender: "System",
@@ -148,11 +145,8 @@ export default function WorkPage() {
       const delay = Math.random() * 2000 + 1000 + (Math.random() * 500); // 1000-3500ms with jitter
       setTimeout(async () => {
         try {
-          // Advanced obfuscated collection name with multiple layers
-          const _base = "msg";
-          const _suffix = "ages";
-          const _middle = "s".repeat(3).slice(0, 3);
-          const collectionName = _base + _middle + _suffix;
+          // Use direct collection name for now
+          const collectionName = "messages";
           // Obfuscated message data
           const _msg = `${username} started working`;
           const _sender = "System";
@@ -211,11 +205,8 @@ export default function WorkPage() {
       const sendDelay = Math.random() * 300 + 100; // 100-400ms
       setTimeout(async () => {
         try {
-          // Advanced obfuscated collection name with multiple layers
-          const _base = "msg";
-          const _suffix = "ages";
-          const _middle = "s".repeat(3).slice(0, 3);
-          const collectionName = _base + _middle + _suffix;
+          // Use direct collection name for now
+          const collectionName = "messages";
           
           // Obfuscated message data
           const _msg = messageText;
