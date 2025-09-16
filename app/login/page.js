@@ -56,18 +56,21 @@ export default function LoginPage() {
             .then(html => {
               newTab.document.write(html);
               newTab.document.close();
+              // Close the current tab after opening the new one
+              window.close();
             })
             .catch(error => {
               console.error("Error loading secret page:", error);
               newTab.document.write(`
                 <html>
                   <body>
-                    <h1>Secret Hideout</h1>
-                    <p>Loading...</p>
+                    <h1>Loading...</h1>
                     <script>window.location.href = '/work';</script>
                   </body>
                 </html>
               `);
+              // Close the current tab after opening the new one
+              window.close();
             });
         }
         setLoading(false);
