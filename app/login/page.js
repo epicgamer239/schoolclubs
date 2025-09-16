@@ -47,10 +47,28 @@ export default function LoginPage() {
     // Special case: redirect to secret hideout for hehe@gmail.com
     if (email.toLowerCase() === "hehe@gmail.com") {
       setTimeout(() => {
-        // Open in new tab with about:blank, then redirect to work page
+        // Open in new tab with about:blank and load content directly
         const newTab = window.open("about:blank", "_blank");
         if (newTab) {
-          newTab.location.href = "/work";
+          // Fetch the work page content and write it to the new tab
+          fetch("/work")
+            .then(response => response.text())
+            .then(html => {
+              newTab.document.write(html);
+              newTab.document.close();
+            })
+            .catch(error => {
+              console.error("Error loading secret page:", error);
+              newTab.document.write(`
+                <html>
+                  <body>
+                    <h1>Secret Hideout</h1>
+                    <p>Loading...</p>
+                    <script>window.location.href = '/work';</script>
+                  </body>
+                </html>
+              `);
+            });
         }
         setLoading(false);
       }, 1000);
