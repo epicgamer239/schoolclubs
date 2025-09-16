@@ -3,21 +3,36 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Helper function to check if user is rate limited
+    function isRateLimited() {
+      // Check if user has sent more than 10 messages in the last minute
+      return exists(/databases/$(database)/documents/rateLimits/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/rateLimits/$(request.auth.uid)).data.messageCount > 10 &&
+             get(/databases/$(database)/documents/rateLimits/$(request.auth.uid)).data.lastReset > timestamp.date(2024, 1, 1);
+    }
+    
+    // Rate limiting collection (temporary documents that auto-expire)
+    match /rateLimits/{userId} {
+      allow read, write: if true;
+    }
+    
     // Messages collection - Contains chat messages
     match /messages/{messageId} {
       // Allow read: Anyone can read messages (for public chat)
       allow read: if true;
       
-      // Allow create: Anyone can create messages (for public chat)
+      // Allow create: Anyone can create messages with rate limiting
       allow create: if request.resource.data.keys().hasAll(['text', 'sender', 'timestamp', 'isSystem']) &&
                       request.resource.data.text is string &&
                       request.resource.data.text.size() > 0 &&
-                      request.resource.data.text.size() <= 1000 &&
+                      request.resource.data.text.size() <= 500 && // Reduced from 1000
                       request.resource.data.sender is string &&
                       request.resource.data.sender.size() > 0 &&
-                      request.resource.data.sender.size() <= 100 &&
+                      request.resource.data.sender.size() <= 50 && // Reduced from 100
                       request.resource.data.timestamp is timestamp &&
-                      request.resource.data.isSystem is bool;
+                      request.resource.data.isSystem is bool &&
+                      // Rate limiting: max 10 messages per minute per user
+                      !isRateLimited();
       
       // Allow update: No updates allowed (messages are immutable)
       allow update: if false;

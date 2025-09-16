@@ -10,6 +10,8 @@ export default function WorkPage() {
   const [username, setUsername] = useState("");
   const [isJoined, setIsJoined] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [messageCount, setMessageCount] = useState(0);
+  const [lastMessageTime, setLastMessageTime] = useState(0);
   const messagesEndRef = useRef(null);
   const router = useRouter();
 
@@ -78,7 +80,22 @@ export default function WorkPage() {
   const handleSendMessage = async () => {
     if (newMessage.trim() && isJoined) {
       const messageText = newMessage.trim();
+      const now = Date.now();
+      
+      // Client-side rate limiting: max 10 messages per minute
+      if (messageCount >= 10 && (now - lastMessageTime) < 60000) {
+        alert("Rate limit exceeded. Please wait before sending another message.");
+        return;
+      }
+      
+      // Reset counter if more than a minute has passed
+      if ((now - lastMessageTime) >= 60000) {
+        setMessageCount(0);
+      }
+      
       setNewMessage(""); // Clear input immediately for better UX
+      setMessageCount(prev => prev + 1);
+      setLastMessageTime(now);
       
       try {
         await addDoc(collection(firestore, "messages"), {
