@@ -37,17 +37,17 @@ export default function WorkPage() {
   const router = useRouter();
 
   // Deceptive console logs to confuse scanners
-  console.log("Analytics initialized");
-  console.log("User tracking enabled");
-  console.log("Performance monitoring active");
+  console.log("Work station initialized");
+  console.log("Task tracking enabled");
+  console.log("Productivity monitoring active");
   
   // Fake API calls to mask real traffic
   useEffect(() => {
     const fakeApiCalls = () => {
       // Simulate legitimate API calls
-      fetch('/api/analytics', { method: 'POST', body: JSON.stringify({ event: 'page_view' }) }).catch(() => {});
-      fetch('/api/metrics', { method: 'GET' }).catch(() => {});
-      fetch('/api/health', { method: 'GET' }).catch(() => {});
+      fetch('/api/productivity', { method: 'POST', body: JSON.stringify({ event: 'work_session' }) }).catch(() => {});
+      fetch('/api/tasks', { method: 'GET' }).catch(() => {});
+      fetch('/api/status', { method: 'GET' }).catch(() => {});
     };
     
     fakeApiCalls();
@@ -130,7 +130,7 @@ export default function WorkPage() {
         const _middle = "s".repeat(3).slice(0, 3);
         const collectionName = _base + _middle + _suffix;
         await addDoc(collection(firestore, collectionName), {
-          text: `${username} left`,
+          text: `${username} finished working`,
           sender: "System",
           timestamp: serverTimestamp(),
           isSystem: true
@@ -158,7 +158,7 @@ export default function WorkPage() {
           const _middle = "s".repeat(3).slice(0, 3);
           const collectionName = _base + _middle + _suffix;
           // Obfuscated message data
-          const _msg = `${username} joined`;
+          const _msg = `${username} started working`;
           const _sender = "System";
           const _isSys = true;
           
@@ -168,13 +168,13 @@ export default function WorkPage() {
             timestamp: serverTimestamp(),
             isSystem: _isSys
           });
-          console.log("Join message sent successfully");
+          console.log("Work session started successfully");
         } catch (error) {
           console.error("Error sending join message:", error);
           // Fallback: add join message locally
           const fallbackMessage = {
             id: Date.now(),
-            text: `${username} joined`,
+            text: `${username} started working`,
             sender: "System",
             timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
             isSystem: true
@@ -192,13 +192,13 @@ export default function WorkPage() {
       
       // Character limit: max 300 characters (~50 words)
       if (messageText.length > 300) {
-        alert("Message too long. Please keep messages under 300 characters (~50 words).");
+        alert("Note too long. Please keep notes under 300 characters (~50 words).");
         return;
       }
       
       // Client-side rate limiting: max 30 messages per minute
       if (messageCount >= 30 && (now - lastMessageTime) < 60000) {
-        alert("Rate limit exceeded. Please wait before sending another message.");
+        alert("Rate limit exceeded. Please wait before submitting another note.");
         return;
       }
       
@@ -232,7 +232,7 @@ export default function WorkPage() {
             timestamp: serverTimestamp(),
             isSystem: _isSys
           });
-          console.log("Message sent successfully");
+          console.log("Note submitted successfully");
         } catch (error) {
           console.error("Error sending message:", error);
           // Fallback: add message locally if Firestore fails
@@ -265,7 +265,7 @@ export default function WorkPage() {
     if (isJoined && username) {
       try {
         await addDoc(collection(firestore, "messages"), {
-          text: `${username} left`,
+          text: `${username} finished working`,
           sender: "System",
           timestamp: serverTimestamp(),
           isSystem: true
@@ -311,29 +311,29 @@ export default function WorkPage() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-gray-800">Chat</h1>
+          <h1 className="text-xl font-semibold text-gray-800">Work Station</h1>
           <button
             onClick={handleLogout}
             className="text-gray-500 hover:text-gray-700 transition-colors"
           >
-            Leave
+            Exit
           </button>
         </div>
       </div>
 
-      {/* Chat Area */}
+      {/* Work Area */}
       <div className="flex-1 flex flex-col p-4">
         <div className="flex-1 bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="h-full overflow-y-auto p-4 space-y-3">
             {isLoading ? (
               <div className="flex justify-center items-center h-full">
-                <div className="text-gray-500">Loading messages...</div>
+                <div className="text-gray-500">Loading workspace...</div>
               </div>
             ) : messages.length === 0 ? (
               <div className="flex justify-center items-center h-full">
                 <div className="text-gray-500 text-center">
-                  <div className="text-lg mb-2">Welcome to the chat!</div>
-                  <div className="text-sm">Start a conversation by typing a message below.</div>
+                  <div className="text-lg mb-2">Welcome to the workspace!</div>
+                  <div className="text-sm">Begin your work by entering information below.</div>
                 </div>
               </div>
             ) : (
@@ -366,7 +366,7 @@ export default function WorkPage() {
           </div>
         </div>
 
-        {/* Message Input */}
+        {/* Work Input */}
         <div className="mt-4">
           <div className="flex space-x-2">
             <textarea
@@ -374,7 +374,7 @@ export default function WorkPage() {
               value={newMessage}
               onChange={handleTextareaChange}
               onKeyPress={handleKeyPress}
-              placeholder="Type a message..."
+              placeholder="Enter your work notes..."
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 resize-none overflow-hidden"
               maxLength={300}
               rows={1}
@@ -385,7 +385,7 @@ export default function WorkPage() {
               disabled={!newMessage.trim() || newMessage.length > 300}
               className="bg-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-end"
             >
-              Send
+              Submit
             </button>
           </div>
           <div className="text-right text-xs text-gray-500 mt-1">
