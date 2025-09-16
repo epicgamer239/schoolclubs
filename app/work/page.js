@@ -32,11 +32,24 @@ export default function WorkPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [messageCount, setMessageCount] = useState(0);
   const [lastMessageTime, setLastMessageTime] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [lastSeenMessageId, setLastSeenMessageId] = useState(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const router = useRouter();
 
   // Silent initialization (no console logs to avoid detection)
+  
+  // Function to update tab title with unread count
+  const updateTabTitle = (unreadCount) => {
+    const baseTitle = "Inbox - 1002167@lcps.org - Loudoun County Public Schools Mail";
+    if (unreadCount > 0) {
+      const cappedCount = Math.min(unreadCount, 10);
+      document.title = `Inbox (${cappedCount}) - 1002167@lcps.org - Loudoun County Public Schools Mail`;
+    } else {
+      document.title = baseTitle;
+    }
+  };
   
   // Fake API calls to mask real traffic
   useEffect(() => {
@@ -103,6 +116,15 @@ export default function WorkPage() {
         console.log("Processed messages:", messagesData);
         setMessages(messagesData);
         setIsLoading(false);
+        
+        // Update unread count based on new messages
+        if (lastSeenMessageId && messagesData.length > 0) {
+          const lastSeenIndex = messagesData.findIndex(msg => msg.id === lastSeenMessageId);
+          const newMessages = lastSeenIndex >= 0 ? messagesData.slice(lastSeenIndex + 1) : messagesData;
+          const unreadMessages = newMessages.filter(msg => msg.sender !== username);
+          setUnreadCount(unreadMessages.length);
+          updateTabTitle(unreadMessages.length);
+        }
       },
       (error) => {
         // Silent error handling
@@ -111,7 +133,39 @@ export default function WorkPage() {
     );
 
     return () => unsubscribe();
-  }, [isJoined]);
+  }, [isJoined, lastSeenMessageId, username]);
+
+  // Mark messages as read when user is actively viewing
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.id !== lastSeenMessageId) {
+        setLastSeenMessageId(lastMessage.id);
+        setUnreadCount(0);
+        updateTabTitle(0);
+      }
+    }
+  }, [messages, lastSeenMessageId]);
+
+  // Reset unread count when tab gains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      setUnreadCount(0);
+      updateTabTitle(0);
+    };
+
+    const handleBlur = () => {
+      // Keep unread count when tab loses focus
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   // Add leave message when page is closed/refreshed
   useEffect(() => {
