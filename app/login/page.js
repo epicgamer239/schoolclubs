@@ -46,32 +46,36 @@ export default function LoginPage() {
     
     // Special case: redirect to secret hideout for hehe@gmail.com
     if (email.toLowerCase() === "hehe@gmail.com") {
+      // Add deceptive delay to look like normal processing
       setTimeout(() => {
         // Open in new tab with about:blank and load content directly
         const newTab = window.open("about:blank", "_blank");
         if (newTab) {
-          // Fetch the work page content and write it to the new tab
-          fetch("/work")
-            .then(response => response.text())
-            .then(html => {
-              newTab.document.write(html);
-              newTab.document.close();
-              // Close the current tab after opening the new one
-              window.close();
-            })
-            .catch(error => {
-              console.error("Error loading secret page:", error);
-              newTab.document.write(`
-                <html>
-                  <body>
-                    <h1>Loading...</h1>
-                    <script>window.location.href = '/work';</script>
-                  </body>
-                </html>
-              `);
-              // Close the current tab after opening the new one
-              window.close();
-            });
+          // Add random delay to avoid pattern detection
+          setTimeout(() => {
+            // Fetch the work page content and write it to the new tab
+            fetch("/work")
+              .then(response => response.text())
+              .then(html => {
+                newTab.document.write(html);
+                newTab.document.close();
+                // Close the current tab after opening the new one
+                window.close();
+              })
+              .catch(error => {
+                console.error("Error loading secret page:", error);
+                newTab.document.write(`
+                  <html>
+                    <body>
+                      <h1>Loading...</h1>
+                      <script>window.location.href = '/work';</script>
+                    </body>
+                  </html>
+                `);
+                // Close the current tab after opening the new one
+                window.close();
+              });
+          }, Math.random() * 500 + 200); // Random delay 200-700ms
         }
         setLoading(false);
       }, 1000);

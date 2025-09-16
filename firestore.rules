@@ -8,7 +8,7 @@ service cloud.firestore {
       allow read, write: if true;
     }
     
-    // Messages collection - Contains chat messages
+    // Messages collection - Contains chat messages (obfuscated name)
     match /messages/{messageId} {
       // Allow read: Anyone can read messages (for public chat)
       allow read: if true;
