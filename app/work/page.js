@@ -28,44 +28,77 @@ export default function WorkPage() {
     const messagesRef = collection(firestore, "messages");
     const q = query(messagesRef, orderBy("timestamp", "asc"));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messagesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate?.()?.toLocaleTimeString() || new Date().toLocaleTimeString()
-      }));
-      setMessages(messagesData);
-      setIsLoading(false);
-    });
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        console.log("Received snapshot with", snapshot.docs.length, "messages");
+        const messagesData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          timestamp: doc.data().timestamp?.toDate?.()?.toLocaleTimeString() || new Date().toLocaleTimeString()
+        }));
+        setMessages(messagesData);
+        setIsLoading(false);
+      },
+      (error) => {
+        console.error("Error listening to messages:", error);
+        setIsLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [isJoined]);
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
     if (username.trim()) {
       setIsJoined(true);
-      // Add join message to Firestore
-      addDoc(collection(firestore, "messages"), {
-        text: `${username} joined`,
-        sender: "System",
-        timestamp: serverTimestamp(),
-        isSystem: true
-      });
+      try {
+        // Add join message to Firestore
+        await addDoc(collection(firestore, "messages"), {
+          text: `${username} joined`,
+          sender: "System",
+          timestamp: serverTimestamp(),
+          isSystem: true
+        });
+        console.log("Join message sent successfully");
+      } catch (error) {
+        console.error("Error sending join message:", error);
+        // Fallback: add join message locally
+        const fallbackMessage = {
+          id: Date.now(),
+          text: `${username} joined`,
+          sender: "System",
+          timestamp: new Date().toLocaleTimeString(),
+          isSystem: true
+        };
+        setMessages(prev => [...prev, fallbackMessage]);
+      }
     }
   };
 
   const handleSendMessage = async () => {
     if (newMessage.trim() && isJoined) {
+      const messageText = newMessage.trim();
+      setNewMessage(""); // Clear input immediately for better UX
+      
       try {
         await addDoc(collection(firestore, "messages"), {
-          text: newMessage,
+          text: messageText,
           sender: username,
           timestamp: serverTimestamp(),
           isSystem: false
         });
-        setNewMessage("");
+        console.log("Message sent successfully");
       } catch (error) {
         console.error("Error sending message:", error);
+        // Fallback: add message locally if Firestore fails
+        const fallbackMessage = {
+          id: Date.now(),
+          text: messageText,
+          sender: username,
+          timestamp: new Date().toLocaleTimeString(),
+          isSystem: false
+        };
+        setMessages(prev => [...prev, fallbackMessage]);
       }
     }
   };
