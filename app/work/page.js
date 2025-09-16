@@ -1,20 +1,15 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { collection, addDoc, onSnapshot, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { firestore } from "@/firebase";
 
 export default function WorkPage() {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      text: "Welcome!",
-      sender: "System",
-      timestamp: new Date().toLocaleTimeString(),
-      isSystem: true
-    }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [username, setUsername] = useState("");
   const [isJoined, setIsJoined] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const messagesEndRef = useRef(null);
   const router = useRouter();
 
@@ -26,31 +21,52 @@ export default function WorkPage() {
     scrollToBottom();
   }, [messages]);
 
+  // Listen for real-time messages from Firestore
+  useEffect(() => {
+    if (!isJoined) return;
+
+    const messagesRef = collection(firestore, "messages");
+    const q = query(messagesRef, orderBy("timestamp", "asc"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const messagesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate?.()?.toLocaleTimeString() || new Date().toLocaleTimeString()
+      }));
+      setMessages(messagesData);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [isJoined]);
+
   const handleJoin = () => {
     if (username.trim()) {
       setIsJoined(true);
-      const joinMessage = {
-        id: Date.now(),
+      // Add join message to Firestore
+      addDoc(collection(firestore, "messages"), {
         text: `${username} joined`,
         sender: "System",
-        timestamp: new Date().toLocaleTimeString(),
+        timestamp: serverTimestamp(),
         isSystem: true
-      };
-      setMessages(prev => [...prev, joinMessage]);
+      });
     }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (newMessage.trim() && isJoined) {
-      const message = {
-        id: Date.now(),
-        text: newMessage,
-        sender: username,
-        timestamp: new Date().toLocaleTimeString(),
-        isSystem: false
-      };
-      setMessages(prev => [...prev, message]);
-      setNewMessage("");
+      try {
+        await addDoc(collection(firestore, "messages"), {
+          text: newMessage,
+          sender: username,
+          timestamp: serverTimestamp(),
+          isSystem: false
+        });
+        setNewMessage("");
+      } catch (error) {
+        console.error("Error sending message:", error);
+      }
     }
   };
 
@@ -113,30 +129,43 @@ export default function WorkPage() {
       <div className="flex-1 flex flex-col p-4">
         <div className="flex-1 bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="h-full overflow-y-auto p-4 space-y-3">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.sender === username ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-xs px-4 py-2 rounded-lg ${
-                    message.isSystem
-                      ? "bg-gray-100 text-gray-600 mx-auto text-center text-sm"
-                      : message.sender === username
-                      ? "bg-blue-500 text-white"
-                      : "bg-gray-200 text-gray-800"
-                  }`}
-                >
-                  {!message.isSystem && message.sender !== username && (
-                    <div className="text-xs text-gray-500 mb-1">{message.sender}</div>
-                  )}
-                  <div className="text-sm">{message.text}</div>
-                  <div className="text-xs opacity-70 mt-1">
-                    {message.timestamp}
-                  </div>
+            {isLoading ? (
+              <div className="flex justify-center items-center h-full">
+                <div className="text-gray-500">Loading messages...</div>
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="flex justify-center items-center h-full">
+                <div className="text-gray-500 text-center">
+                  <div className="text-lg mb-2">Welcome to the chat!</div>
+                  <div className="text-sm">Start a conversation by typing a message below.</div>
                 </div>
               </div>
-            ))}
+            ) : (
+              messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.sender === username ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-xs px-4 py-2 rounded-lg ${
+                      message.isSystem
+                        ? "bg-gray-100 text-gray-600 mx-auto text-center text-sm"
+                        : message.sender === username
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-200 text-gray-800"
+                    }`}
+                  >
+                    {!message.isSystem && message.sender !== username && (
+                      <div className="text-xs text-gray-500 mb-1">{message.sender}</div>
+                    )}
+                    <div className="text-sm">{message.text}</div>
+                    <div className="text-xs opacity-70 mt-1">
+                      {message.timestamp}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
             <div ref={messagesEndRef} />
           </div>
         </div>
