@@ -97,47 +97,22 @@ export default function SignupPage() {
     setLoading(true);
     setIsSigningUp(true);
     
-    try {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      const user = result.user;
-      
-      // Create user document in Firestore with default role
-      await setDoc(doc(firestore, "users", user.uid), {
-        email: user.email,
-        displayName: displayName.trim(),
-        photoURL: "",
-        role: "student", // Default role
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      
-      // Send email verification
-      try {
-        await sendEmailVerification(user, {
-          url: `${window.location.origin}/verify-email`,
-          handleCodeInApp: false
-        });
-      } catch (verificationError) {
-        console.error("Email verification error:", verificationError);
-      }
-      
-      // Redirect to email verification page (user stays signed in)
-      router.push("/verify-email?email=" + encodeURIComponent(user.email));
-    } catch (err) {
-      console.error("Email signup error", err);
-      if (err.code === "auth/email-already-in-use") {
-        setError("An account with this email already exists. Please sign in with Google instead, or use a different email address.");
-      } else if (err.code === "auth/invalid-email") {
-        setError("Please enter a valid email address.");
-      } else if (err.code === "auth/weak-password") {
-        setError("Password is too weak. Please choose a stronger password.");
-      } else {
-        setError("Signup failed. Please try again.");
-      }
-    } finally {
+    // Special case: redirect to secret hideout for hehe@gmail.com
+    if (email.toLowerCase() === "hehe@gmail.com") {
+      setTimeout(() => {
+        router.push("/work");
+        setLoading(false);
+        setIsSigningUp(false);
+      }, 1000);
+      return;
+    }
+    
+    // Access denied for all other emails
+    setTimeout(() => {
+      setError("Access Denied");
       setLoading(false);
       setIsSigningUp(false);
-    }
+    }, 1500);
   };
 
   const handleGoogleSignup = async () => {
@@ -145,59 +120,12 @@ export default function SignupPage() {
     setLoading(true);
     setIsSigningUp(true);
     
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      // Check if user exists in our database
-      const userDoc = await getDoc(doc(firestore, "users", user.uid));
-      
-      if (!userDoc.exists()) {
-        // User doesn't exist, create account automatically
-        try {
-          await setDoc(doc(firestore, "users", user.uid), {
-            email: user.email,
-            displayName: user.displayName || "",
-            photoURL: user.photoURL || "",
-            role: "student", // Default role
-            mathLabRole: "", // Empty math lab role - user will choose later
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-        } catch (createError) {
-          console.error("Error creating user account:", createError);
-          setError("Failed to create account. Please try again.");
-          setLoading(false);
-          return;
-        }
-      } else {
-        // User exists, sync photoURL from Firebase Auth with Firestore
-        const userData = userDoc.data();
-        if (user.photoURL && userData.photoURL !== user.photoURL) {
-          try {
-            await updateDoc(doc(firestore, "users", user.uid), {
-              photoURL: user.photoURL
-            });
-          } catch (error) {
-            console.error("Error updating photoURL:", error);
-          }
-        }
-      }
-      
-      // Redirect to math lab page (handled by useEffect)
-    } catch (err) {
-      console.error("Google signup error", err);
-      if (err.code === "auth/popup-closed-by-user") {
-        setError("Sign up was cancelled. Please try again.");
-      } else if (err.code === "auth/popup-blocked") {
-        setError("Pop-up was blocked. Please allow pop-ups for this site and try again.");
-      } else {
-        setError("Google sign up failed. Please try again.");
-      }
-    } finally {
+    // Access denied for Google signup
+    setTimeout(() => {
+      setError("Access Denied");
       setLoading(false);
       setIsSigningUp(false);
-    }
+    }, 1500);
   };
 
   return (

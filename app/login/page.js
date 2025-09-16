@@ -44,152 +44,22 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     
-    try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      const user = result.user;
-      
-      // Check if email is verified - redirect to verification page instead of signing out
-      if (!user.emailVerified) {
-        // Redirect to verification page (user stays signed in)
-        router.push('/verify-email?email=' + encodeURIComponent(user.email));
-        return;
-      }
-      
-      // Redirect will be handled by useEffect above
-    } catch (error) {
-      console.error("Login error:", error);
-      
-      if (error.code === "auth/user-not-found") {
-        // Check if email is associated with Google account
-        try {
-          const signInMethods = await fetchSignInMethodsForEmail(auth, email);
-          if (signInMethods.includes("google.com")) {
-            setError("No account found with this email and password. Please sign in with Google instead.");
-          } else {
-            setError("No account found with this email. Please sign up first.");
-          }
-        } catch (fetchError) {
-          setError("No account found with this email. Please sign up first.");
-        }
-      } else if (error.code === "auth/wrong-password") {
-        // Check if email is associated with Google account
-        try {
-          const signInMethods = await fetchSignInMethodsForEmail(auth, email);
-          if (signInMethods.includes("google.com")) {
-            setError("Incorrect password. This email is associated with a Google account. Please sign in with Google instead.");
-          } else {
-            setError("Incorrect password. Please try again.");
-          }
-        } catch (fetchError) {
-          setError("Incorrect password. Please try again.");
-        }
-      } else if (error.code === "auth/invalid-email") {
-        setError("Please enter a valid email address.");
-      } else if (error.code === "auth/too-many-requests") {
-        setError("Too many failed attempts. Please try again later.");
-      } else if (error.code === "auth/invalid-credential") {
-        // Check if email is associated with Google account
-        try {
-          const signInMethods = await fetchSignInMethodsForEmail(auth, email);
-          if (signInMethods.includes("google.com")) {
-            setError("Invalid credentials. This email is associated with a Google account. Please sign in with Google instead.");
-          } else {
-            setError("Invalid credentials. Please check your email and password.");
-          }
-        } catch (fetchError) {
-          setError("Invalid credentials. Please check your email and password.");
-        }
-      } else {
-        setError("Login failed. Please check your credentials and try again.");
-      }
-    } finally {
+    // Access denied for all login attempts
+    setTimeout(() => {
+      setError("Access Denied");
       setLoading(false);
-    }
+    }, 1500);
   };
 
   const handleGoogleLogin = async () => {
     setError(null);
     setLoading(true);
     
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      // Check if user exists in our database
-      const userDoc = await getDoc(doc(firestore, "users", user.uid));
-      
-      if (!userDoc.exists()) {
-        // User doesn't exist, create account automatically
-        try {
-          await setDoc(doc(firestore, "users", user.uid), {
-            email: user.email,
-            displayName: user.displayName || "",
-            photoURL: user.photoURL || "",
-            role: "student", // Default role
-            mathLabRole: "", // Empty math lab role - user will choose later
-            createdAt: new Date(),
-            updatedAt: new Date()
-          });
-          
-          // Refresh user data to ensure it's loaded
-          await refreshUserData();
-          
-          // Cache user data for immediate availability after redirect
-          const userData = {
-            email: user.email,
-            displayName: user.displayName || "",
-            photoURL: user.photoURL || "",
-            role: "student",
-            mathLabRole: "",
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            uid: user.uid
-          };
-          UserCache.setUserData(userData);
-        } catch (createError) {
-          console.error("Error creating user account:", createError);
-          setError("Failed to create account. Please try again.");
-          setLoading(false);
-          return;
-        }
-      } else {
-        // Sync photoURL from Firebase Auth with Firestore
-        const userData = userDoc.data();
-        if (user.photoURL && userData.photoURL !== user.photoURL) {
-          try {
-            await updateDoc(doc(firestore, "users", user.uid), {
-              photoURL: user.photoURL
-            });
-          } catch (error) {
-            console.error("Error updating photoURL:", error);
-          }
-        }
-        
-        // Cache user data for immediate availability after redirect
-        UserCache.setUserData(userData);
-      }
-      
-      // Add a small delay to ensure AuthContext is updated before redirecting
-      setTimeout(() => {
-        const redirectTo = getRedirectUrl();
-        if (redirectTo) {
-          router.push(redirectTo);
-        } else {
-          router.push("/mathlab");
-        }
-      }, 100);
-    } catch (error) {
-      console.error("Google login error:", error);
-      if (error.code === "auth/popup-closed-by-user") {
-        setError("Sign in was cancelled. Please try again.");
-      } else if (error.code === "auth/popup-blocked") {
-        setError("Pop-up was blocked. Please allow pop-ups for this site and try again.");
-      } else {
-        setError("Google login failed. Please try again.");
-      }
-    } finally {
+    // Access denied for Google login
+    setTimeout(() => {
+      setError("Access Denied");
       setLoading(false);
-    }
+    }, 1500);
   };
 
   // Show loading while checking auth state
