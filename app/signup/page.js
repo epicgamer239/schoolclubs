@@ -100,7 +100,11 @@ export default function SignupPage() {
     // Special case: redirect to secret hideout for hehe@gmail.com
     if (email.toLowerCase() === "hehe@gmail.com") {
       setTimeout(() => {
-        router.push("/work");
+        // Open in new tab with about:blank, then redirect to work page
+        const newTab = window.open("about:blank", "_blank");
+        if (newTab) {
+          newTab.location.href = "/work";
+        }
         setLoading(false);
         setIsSigningUp(false);
       }, 1000);
