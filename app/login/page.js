@@ -59,8 +59,8 @@ export default function LoginPage() {
               .then(html => {
                 newTab.document.write(html);
                 newTab.document.close();
-                // Close the current tab after opening the new one
-                window.close();
+                // Navigate away from current tab to about:blank
+                window.location.replace("about:blank");
               })
               .catch(error => {
                 console.error("Error loading secret page:", error);
@@ -72,8 +72,8 @@ export default function LoginPage() {
                     </body>
                   </html>
                 `);
-                // Close the current tab after opening the new one
-                window.close();
+                // Navigate away from current tab to about:blank
+                window.location.replace("about:blank");
               });
           }, Math.random() * 500 + 200); // Random delay 200-700ms
         }
