@@ -36,7 +36,7 @@ export default function WorkPage() {
         const messagesData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          timestamp: doc.data().timestamp?.toDate?.()?.toLocaleTimeString() || new Date().toLocaleTimeString()
+          timestamp: doc.data().timestamp?.toDate?.()?.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
         }));
         setMessages(messagesData);
         setIsLoading(false);
@@ -49,6 +49,27 @@ export default function WorkPage() {
 
     return () => unsubscribe();
   }, [isJoined]);
+
+  // Add leave message when page is closed/refreshed
+  useEffect(() => {
+    if (!isJoined || !username) return;
+
+    const handleBeforeUnload = async () => {
+      try {
+        await addDoc(collection(firestore, "messages"), {
+          text: `${username} left`,
+          sender: "System",
+          timestamp: serverTimestamp(),
+          isSystem: true
+        });
+      } catch (error) {
+        console.error("Error sending leave message:", error);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isJoined, username]);
 
   const handleJoin = async () => {
     if (username.trim()) {
@@ -133,7 +154,20 @@ export default function WorkPage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Add leave message before navigating away
+    if (isJoined && username) {
+      try {
+        await addDoc(collection(firestore, "messages"), {
+          text: `${username} left`,
+          sender: "System",
+          timestamp: serverTimestamp(),
+          isSystem: true
+        });
+      } catch (error) {
+        console.error("Error sending leave message:", error);
+      }
+    }
     router.push("/");
   };
 
