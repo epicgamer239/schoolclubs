@@ -86,22 +86,21 @@ export default function WorkPage() {
   useEffect(() => {
     if (!isJoined) return;
 
-    // Advanced obfuscated collection name with multiple layers
-    const _base = "msg";
-    const _suffix = "ages";
-    const _middle = "s".repeat(3).slice(0, 3);
-    const collectionName = _base + _middle + _suffix;
+    // Use direct collection name for now
+    const collectionName = "messages";
     const messagesRef = collection(firestore, collectionName);
     const q = query(messagesRef, orderBy("timestamp", "asc"));
 
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
-        // Silent message processing
+        // Debug: Check if we're receiving messages
+        console.log("Received snapshot with", snapshot.docs.length, "messages");
         const messagesData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
           timestamp: doc.data().timestamp?.toDate?.()?.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
         }));
+        console.log("Processed messages:", messagesData);
         setMessages(messagesData);
         setIsLoading(false);
       },
