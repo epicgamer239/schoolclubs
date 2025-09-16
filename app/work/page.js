@@ -13,15 +13,27 @@ export default function WorkPage() {
   const [messageCount, setMessageCount] = useState(0);
   const [lastMessageTime, setLastMessageTime] = useState(0);
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
   const router = useRouter();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const autoResizeTextarea = () => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+    }
+  };
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    autoResizeTextarea();
+  }, [newMessage]);
 
   // Listen for real-time messages from Firestore
   useEffect(() => {
@@ -154,6 +166,10 @@ export default function WorkPage() {
     }
   };
 
+  const handleTextareaChange = (e) => {
+    setNewMessage(e.target.value);
+  };
+
   const handleLogout = async () => {
     // Add leave message before navigating away
     if (isJoined && username) {
@@ -263,19 +279,21 @@ export default function WorkPage() {
         {/* Message Input */}
         <div className="mt-4">
           <div className="flex space-x-2">
-            <input
-              type="text"
+            <textarea
+              ref={textareaRef}
               value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
+              onChange={handleTextareaChange}
               onKeyPress={handleKeyPress}
               placeholder="Type a message..."
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 resize-none overflow-hidden"
               maxLength={300}
+              rows={1}
+              style={{ minHeight: '48px', maxHeight: '120px' }}
             />
             <button
               onClick={handleSendMessage}
               disabled={!newMessage.trim() || newMessage.length > 300}
-              className="bg-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-end"
             >
               Send
             </button>
