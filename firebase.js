@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth, GoogleAuthProvider, createUserWithEmailAndPassword, sendEmailVerification, fetchSignInMethodsForEmail } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, enableNetwork, disableNetwork } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBzq-f8k6Ul2TnG7qGM-Trnufx-pzXEHj4",
@@ -28,6 +28,15 @@ if (typeof window !== 'undefined') {
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 const firestore = getFirestore(app);
+
+// Enable Firestore caching for web (reduces read costs)
+if (typeof window !== 'undefined') {
+  // Enable offline persistence
+  firestore.settings({
+    cacheSizeBytes: 50 * 1024 * 1024, // 50MB cache
+    ignoreUndefinedProperties: true
+  });
+}
 
 export { auth, provider, firestore, createUserWithEmailAndPassword, sendEmailVerification, fetchSignInMethodsForEmail, analytics };
 export default app;
