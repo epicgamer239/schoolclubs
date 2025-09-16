@@ -82,8 +82,14 @@ export default function WorkPage() {
       const messageText = newMessage.trim();
       const now = Date.now();
       
-      // Client-side rate limiting: max 10 messages per minute
-      if (messageCount >= 10 && (now - lastMessageTime) < 60000) {
+      // Character limit: max 300 characters (~50 words)
+      if (messageText.length > 300) {
+        alert("Message too long. Please keep messages under 300 characters (~50 words).");
+        return;
+      }
+      
+      // Client-side rate limiting: max 30 messages per minute
+      if (messageCount >= 30 && (now - lastMessageTime) < 60000) {
         alert("Rate limit exceeded. Please wait before sending another message.");
         return;
       }
@@ -221,22 +227,28 @@ export default function WorkPage() {
         </div>
 
         {/* Message Input */}
-        <div className="mt-4 flex space-x-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Type a message..."
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={!newMessage.trim()}
-            className="bg-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Send
-          </button>
+        <div className="mt-4">
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Type a message..."
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              maxLength={300}
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!newMessage.trim() || newMessage.length > 300}
+              className="bg-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Send
+            </button>
+          </div>
+          <div className="text-right text-xs text-gray-500 mt-1">
+            {newMessage.length}/300 characters
+          </div>
         </div>
       </div>
     </div>
