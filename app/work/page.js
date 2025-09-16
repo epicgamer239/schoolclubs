@@ -43,10 +43,13 @@ export default function WorkPage() {
   // Function to update tab title with unread count
   const updateTabTitle = (unreadCount) => {
     const baseTitle = "Inbox - 1002167@lcps.org - Loudoun County Public Schools Mail";
-    if (unreadCount > 0) {
+    
+    // Only show unread count when tab is hidden/inactive
+    if (document.visibilityState === 'hidden' && unreadCount > 0) {
       const cappedCount = Math.min(unreadCount, 10);
       document.title = `Inbox (${cappedCount}) - 1002167@lcps.org - Loudoun County Public Schools Mail`;
     } else {
+      // Always show base title when tab is active
       document.title = baseTitle;
     }
   };
@@ -176,32 +179,30 @@ export default function WorkPage() {
     }
   }, [messages, lastSeenMessageId]);
 
-  // Reset unread count when tab gains focus
+  // Handle tab visibility changes
   useEffect(() => {
-    const handleFocus = () => {
-      setUnreadCount(0);
-      updateTabTitle(0);
-      // Mark all current messages as read
-      if (messages.length > 0) {
-        const lastMessage = messages[messages.length - 1];
-        if (lastMessage) {
-          setLastSeenMessageId(lastMessage.id);
+    const handleVisibilityChange = () => {
+      // Update title based on current visibility and unread count
+      updateTabTitle(unreadCount);
+      
+      // When tab becomes visible, mark messages as read
+      if (document.visibilityState === 'visible') {
+        setUnreadCount(0);
+        if (messages.length > 0) {
+          const lastMessage = messages[messages.length - 1];
+          if (lastMessage) {
+            setLastSeenMessageId(lastMessage.id);
+          }
         }
       }
     };
 
-    const handleBlur = () => {
-      // Keep unread count when tab loses focus
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [messages]);
+  }, [unreadCount, messages]);
 
   // Add leave message when page is closed/refreshed
   useEffect(() => {
