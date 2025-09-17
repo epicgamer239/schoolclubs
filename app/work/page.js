@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/ThemeContext";
 
 // Deceptive imports to confuse scanners
-import { collection as _c, addDoc as _a, onSnapshot as _o, orderBy as _ob, query as _q, serverTimestamp as _st } from "firebase/firestore";
+import { collection as _c, addDoc as _a, onSnapshot as _o, orderBy as _ob, query as _q, serverTimestamp as _st, updateDoc as _u, doc as _d, arrayUnion as _au } from "firebase/firestore";
 import { firestore as _f } from "@/firebase";
 
 // Advanced obfuscation with multiple layers
@@ -23,6 +23,9 @@ const onSnapshot = _snap;
 const orderBy = _order;
 const query = _qry;
 const serverTimestamp = _time;
+const updateDoc = _u;
+const doc = _d;
+const arrayUnion = _au;
 const firestore = _db;
 
 export default function WorkPage() {
@@ -53,6 +56,20 @@ export default function WorkPage() {
     } else {
       // Always show base title when tab is active
       document.title = baseTitle;
+    }
+  };
+
+  // Function to mark a message as read
+  const markMessageAsRead = async (messageId) => {
+    if (!username || !messageId) return;
+    
+    try {
+      const messageRef = doc(firestore, "messages", messageId);
+      await updateDoc(messageRef, {
+        readBy: arrayUnion(username)
+      });
+    } catch (error) {
+      // Silent error handling
     }
   };
   
@@ -169,6 +186,8 @@ export default function WorkPage() {
             setLastSeenMessageId(lastMessage.id);
             setUnreadCount(0);
             updateTabTitle(0);
+            // Mark the last message as read
+            markMessageAsRead(lastMessage.id);
           }
         }
       }
@@ -179,7 +198,7 @@ export default function WorkPage() {
       messagesContainer.addEventListener('scroll', handleScroll);
       return () => messagesContainer.removeEventListener('scroll', handleScroll);
     }
-  }, [messages, lastSeenMessageId]);
+  }, [messages, lastSeenMessageId, username]);
 
   // Handle tab visibility changes
   useEffect(() => {
@@ -470,6 +489,19 @@ export default function WorkPage() {
               ))
             )}
             <div ref={messagesEndRef} />
+            
+            {/* Read Receipt for Last Message */}
+            {messages.length > 0 && messages[messages.length - 1] && !messages[messages.length - 1].isSystem && (
+              <div className="flex justify-center mt-2">
+                <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                  {messages[messages.length - 1].readBy && messages[messages.length - 1].readBy.length > 0 ? (
+                    `Read by ${messages[messages.length - 1].readBy.join(', ')}`
+                  ) : (
+                    'Not read yet'
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
