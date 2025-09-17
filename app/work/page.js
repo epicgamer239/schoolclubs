@@ -178,7 +178,11 @@ export default function WorkPage() {
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Only auto-scroll when the tab is active to avoid clearing unread on hidden tabs
+    const isActive = document.visibilityState === 'visible' && document.hasFocus();
+    if (isActive) {
+      scrollToBottom();
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -303,10 +307,11 @@ export default function WorkPage() {
   // Mark messages as read when they come into view
   useEffect(() => {
     const handleScroll = () => {
+      const isActive = document.visibilityState === 'visible' && document.hasFocus();
       const messagesContainer = document.querySelector('.messages-container');
       if (messagesContainer) {
         const isAtBottom = messagesContainer.scrollTop + messagesContainer.clientHeight >= messagesContainer.scrollHeight - 10;
-        if (isAtBottom && messages.length > 0) {
+        if (isAtBottom && messages.length > 0 && isActive) {
           const lastMessage = messages[messages.length - 1];
           if (lastMessage && lastMessage.id !== lastSeenMessageId) {
             setLastSeenMessageId(lastMessage.id);
@@ -323,8 +328,9 @@ export default function WorkPage() {
 
     // Use Intersection Observer for more reliable read detection
     const observer = new IntersectionObserver((entries) => {
+      const isActive = document.visibilityState === 'visible' && document.hasFocus();
       entries.forEach((entry) => {
-        if (entry.isIntersecting) {
+        if (isActive && entry.isIntersecting) {
           const messageElement = entry.target;
           const messageId = messageElement.getAttribute('data-message-id');
           const messageSender = messageElement.getAttribute('data-message-sender');
