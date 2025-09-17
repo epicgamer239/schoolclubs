@@ -15,13 +15,21 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Only initialize analytics on the client side
+// Only initialize analytics on the client side with proper error handling
 let analytics = null;
 if (typeof window !== 'undefined') {
   isSupported().then((supported) => {
     if (supported) {
-      analytics = getAnalytics(app);
+      try {
+        analytics = getAnalytics(app);
+      } catch (error) {
+        // Silent error handling for analytics initialization
+        analytics = null;
+      }
     }
+  }).catch((error) => {
+    // Silent error handling for isSupported check
+    analytics = null;
   });
 }
 

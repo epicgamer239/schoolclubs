@@ -56,6 +56,11 @@ export default function WorkPage() {
   const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
   const getCachedMessages = useCallback(() => {
+    // Check if we're in browser environment before accessing localStorage
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
@@ -71,6 +76,11 @@ export default function WorkPage() {
   }, []);
 
   const setCachedMessages = useCallback((messages) => {
+    // Check if we're in browser environment before accessing localStorage
+    if (typeof window === 'undefined') {
+      return;
+    }
+    
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify({
         data: messages,
@@ -114,6 +124,7 @@ export default function WorkPage() {
     // Clear existing timeout
     if (readReceiptTimeout.current) {
       clearTimeout(readReceiptTimeout.current);
+      readReceiptTimeout.current = null;
     }
     
     // Set new timeout for batch processing
@@ -132,6 +143,9 @@ export default function WorkPage() {
           // Silent error handling
         }
       }
+      
+      // Clear timeout reference after completion
+      readReceiptTimeout.current = null;
     }, 2000); // 2 second debounce
   }, [username, messages]);
   
@@ -205,11 +219,29 @@ export default function WorkPage() {
       (snapshot) => {
         // Only process if there are actual changes (not just read receipt updates)
         const messagesData = snapshot.docs
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            timestamp: doc.data().timestamp?.toDate?.()?.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-          }))
+          .map(doc => {
+            const data = doc.data();
+            let timestamp;
+            
+            try {
+              // Safely handle timestamp conversion with null checks
+              if (data.timestamp && typeof data.timestamp.toDate === 'function') {
+                const date = data.timestamp.toDate();
+                timestamp = date ? date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+              } else {
+                timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+              }
+            } catch (error) {
+              // Fallback to current time if timestamp conversion fails
+              timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            }
+            
+            return {
+              id: doc.id,
+              ...data,
+              timestamp
+            };
+          })
           .reverse(); // Reverse to show oldest first (asc order)
         
         // Only update state if messages actually changed (not just readBy updates)
@@ -223,20 +255,22 @@ export default function WorkPage() {
             // Cache the messages for future use
             setCachedMessages(messagesData);
             
-            // Update unread count based on new messages
+            // Update unread count based on new messages (use functional update to avoid race conditions)
             if (messagesData.length > 0) {
-              if (lastSeenMessageId) {
-                const lastSeenIndex = messagesData.findIndex(msg => msg.id === lastSeenMessageId);
-                const newMessages = lastSeenIndex >= 0 ? messagesData.slice(lastSeenIndex + 1) : messagesData;
-                const unreadMessages = newMessages.filter(msg => msg.sender !== username);
-                setUnreadCount(unreadMessages.length);
-                updateTabTitle(unreadMessages.length);
-              } else {
-                // First time loading - count all messages from other users as unread
-                const unreadMessages = messagesData.filter(msg => msg.sender !== username && !msg.isSystem);
-                setUnreadCount(unreadMessages.length);
-                updateTabTitle(unreadMessages.length);
-              }
+              setUnreadCount(prevUnreadCount => {
+                if (lastSeenMessageId) {
+                  const lastSeenIndex = messagesData.findIndex(msg => msg.id === lastSeenMessageId);
+                  const newMessages = lastSeenIndex >= 0 ? messagesData.slice(lastSeenIndex + 1) : messagesData;
+                  const unreadMessages = newMessages.filter(msg => msg.sender !== username);
+                  updateTabTitle(unreadMessages.length);
+                  return unreadMessages.length;
+                } else {
+                  // First time loading - count all messages from other users as unread
+                  const unreadMessages = messagesData.filter(msg => msg.sender !== username && !msg.isSystem);
+                  updateTabTitle(unreadMessages.length);
+                  return unreadMessages.length;
+                }
+              });
             }
             return messagesData;
           }
@@ -262,7 +296,10 @@ export default function WorkPage() {
       // Clear any pending read receipt updates
       if (readReceiptTimeout.current) {
         clearTimeout(readReceiptTimeout.current);
+        readReceiptTimeout.current = null;
       }
+      // Clear the queue
+      readReceiptQueue.current.clear();
     };
   }, [isJoined, lastSeenMessageId, username, getCachedMessages, setCachedMessages]);
 
@@ -317,13 +354,15 @@ export default function WorkPage() {
     if (messagesContainer) {
       messagesContainer.addEventListener('scroll', handleScroll);
       handleScroll();
-      return () => {
-        messagesContainer.removeEventListener('scroll', handleScroll);
-        observer.disconnect();
-      };
     }
     
-    return () => observer.disconnect();
+    // Cleanup function
+    return () => {
+      if (messagesContainer) {
+        messagesContainer.removeEventListener('scroll', handleScroll);
+      }
+      observer.disconnect();
+    };
   }, [messages, lastSeenMessageId, username, markMessageAsRead]);
 
   // Handle tab visibility changes
