@@ -362,22 +362,50 @@ export default function WorkPage() {
     };
   }, [messages, lastSeenMessageId, username, markMessageAsRead]);
 
-  // Handle tab visibility changes
+  // Handle tab visibility changes and enforce title while hidden
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      // Update title based on current visibility and unread count
+    let titleEnforcer = null;
+
+    const applyTitle = () => {
       updateTabTitle(unreadCount);
-      
-      // When tab becomes visible, only mark as read if user scrolls to bottom
-      // Don't automatically mark as read just by switching tabs
     };
 
+    const startEnforcer = () => {
+      if (!titleEnforcer) {
+        titleEnforcer = setInterval(applyTitle, 2000);
+      }
+    };
+
+    const stopEnforcer = () => {
+      if (titleEnforcer) {
+        clearInterval(titleEnforcer);
+        titleEnforcer = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      applyTitle();
+      if (document.visibilityState === 'hidden') {
+        startEnforcer();
+      } else {
+        stopEnforcer();
+      }
+    };
+
+    // Initial apply and init enforcer based on current state
+    handleVisibilityChange();
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+    window.addEventListener('blur', handleVisibilityChange);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+      window.removeEventListener('blur', handleVisibilityChange);
+      stopEnforcer();
     };
-  }, [unreadCount, messages]);
+  }, [unreadCount]);
 
   // Add leave message when page is closed/refreshed
   useEffect(() => {
