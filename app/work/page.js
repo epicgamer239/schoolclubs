@@ -232,13 +232,10 @@ export default function WorkPage() {
                 setUnreadCount(unreadMessages.length);
                 updateTabTitle(unreadMessages.length);
               } else {
-                // First time loading - mark all messages as read
-                const lastMessage = messagesData[messagesData.length - 1];
-                if (lastMessage) {
-                  setLastSeenMessageId(lastMessage.id);
-                  setUnreadCount(0);
-                  updateTabTitle(0);
-                }
+                // First time loading - count all messages from other users as unread
+                const unreadMessages = messagesData.filter(msg => msg.sender !== username && !msg.isSystem);
+                setUnreadCount(unreadMessages.length);
+                updateTabTitle(unreadMessages.length);
               }
             }
             return messagesData;
@@ -335,16 +332,8 @@ export default function WorkPage() {
       // Update title based on current visibility and unread count
       updateTabTitle(unreadCount);
       
-      // When tab becomes visible, mark messages as read
-      if (document.visibilityState === 'visible') {
-        setUnreadCount(0);
-        if (messages.length > 0) {
-          const lastMessage = messages[messages.length - 1];
-          if (lastMessage) {
-            setLastSeenMessageId(lastMessage.id);
-          }
-        }
-      }
+      // When tab becomes visible, only mark as read if user scrolls to bottom
+      // Don't automatically mark as read just by switching tabs
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
