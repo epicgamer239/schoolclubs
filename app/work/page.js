@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/ThemeContext";
 
 // Deceptive imports to confuse scanners
-import { collection as _c, addDoc as _a, onSnapshot as _o, orderBy as _ob, query as _q, serverTimestamp as _st, updateDoc as _u, doc as _d, arrayUnion as _au } from "firebase/firestore";
+import { collection as _c, addDoc as _a, onSnapshot as _o, orderBy as _ob, query as _q, serverTimestamp as _st, updateDoc as _u, doc as _d, arrayUnion as _au, limit as _l, startAfter as _sa, getDocs as _gd } from "firebase/firestore";
 import { firestore as _f } from "@/firebase";
 
 // Advanced obfuscation with multiple layers
@@ -26,6 +26,9 @@ const serverTimestamp = _time;
 const updateDoc = _u;
 const doc = _d;
 const arrayUnion = _au;
+const limit = _l;
+const startAfter = _sa;
+const getDocs = _gd;
 const firestore = _db;
 
 export default function WorkPage() {
@@ -38,12 +41,45 @@ export default function WorkPage() {
   const [lastMessageTime, setLastMessageTime] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastSeenMessageId, setLastSeenMessageId] = useState(null);
+  const [lastVisibleMessage, setLastVisibleMessage] = useState(null);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [lastSnapshotTime, setLastSnapshotTime] = useState(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
 
   // Silent initialization (no console logs to avoid detection)
+  
+  // Local storage cache for messages
+  const CACHE_KEY = 'work_messages_cache';
+  const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+
+  const getCachedMessages = useCallback(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_EXPIRY) {
+          return data;
+        }
+      }
+    } catch (error) {
+      // Silent error handling
+    }
+    return null;
+  }, []);
+
+  const setCachedMessages = useCallback((messages) => {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        data: messages,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      // Silent error handling
+    }
+  }, []);
   
   // Function to update tab title with unread count
   const updateTabTitle = (unreadCount) => {
@@ -59,7 +95,10 @@ export default function WorkPage() {
     }
   };
 
-  // Function to mark a message as read (with debouncing)
+  // Debounced read receipt marking to prevent excessive writes
+  const readReceiptQueue = useRef(new Set());
+  const readReceiptTimeout = useRef(null);
+
   const markMessageAsRead = useCallback(async (messageId) => {
     if (!username || !messageId) return;
     
@@ -69,14 +108,31 @@ export default function WorkPage() {
       return; // Already marked as read
     }
     
-    try {
-      const messageRef = doc(firestore, "messages", messageId);
-      await updateDoc(messageRef, {
-        readBy: arrayUnion(username)
-      });
-    } catch (error) {
-      // Silent error handling
+    // Add to queue for batch processing
+    readReceiptQueue.current.add(messageId);
+    
+    // Clear existing timeout
+    if (readReceiptTimeout.current) {
+      clearTimeout(readReceiptTimeout.current);
     }
+    
+    // Set new timeout for batch processing
+    readReceiptTimeout.current = setTimeout(async () => {
+      const messagesToUpdate = Array.from(readReceiptQueue.current);
+      readReceiptQueue.current.clear();
+      
+      // Batch update all queued messages
+      for (const msgId of messagesToUpdate) {
+        try {
+          const messageRef = doc(firestore, "messages", msgId);
+          await updateDoc(messageRef, {
+            readBy: arrayUnion(username)
+          });
+        } catch (error) {
+          // Silent error handling
+        }
+      }
+    }, 2000); // 2 second debounce
   }, [username, messages]);
   
   // Fake API calls to mask real traffic
@@ -123,23 +179,38 @@ export default function WorkPage() {
     autoResizeTextarea();
   }, [newMessage]);
 
-  // Listen for real-time messages from Firestore
+  // Listen for real-time messages from Firestore with optimization
   useEffect(() => {
     if (!isJoined) return;
+
+    // Try to load from cache first
+    const cachedMessages = getCachedMessages();
+    if (cachedMessages && cachedMessages.length > 0) {
+      setMessages(cachedMessages);
+      setIsLoading(false);
+    }
 
     // Use direct collection name for now
     const collectionName = "messages";
     const messagesRef = collection(firestore, collectionName);
-    const q = query(messagesRef, orderBy("timestamp", "asc"));
+    
+    // Limit to last 50 messages for better performance and caching
+    const q = query(
+      messagesRef, 
+      orderBy("timestamp", "desc"), 
+      limit(50)
+    );
 
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
         // Only process if there are actual changes (not just read receipt updates)
-        const messagesData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          timestamp: doc.data().timestamp?.toDate?.()?.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-        }));
+        const messagesData = snapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            timestamp: doc.data().timestamp?.toDate?.()?.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+          }))
+          .reverse(); // Reverse to show oldest first (asc order)
         
         // Only update state if messages actually changed (not just readBy updates)
         setMessages(prevMessages => {
@@ -148,6 +219,9 @@ export default function WorkPage() {
           
           if (hasNewMessages) {
             setIsLoading(false);
+            
+            // Cache the messages for future use
+            setCachedMessages(messagesData);
             
             // Update unread count based on new messages
             if (messagesData.length > 0) {
@@ -186,8 +260,14 @@ export default function WorkPage() {
       }
     );
 
-    return () => unsubscribe();
-  }, [isJoined, lastSeenMessageId, username]);
+    return () => {
+      unsubscribe();
+      // Clear any pending read receipt updates
+      if (readReceiptTimeout.current) {
+        clearTimeout(readReceiptTimeout.current);
+      }
+    };
+  }, [isJoined, lastSeenMessageId, username, getCachedMessages, setCachedMessages]);
 
   // Mark messages as read when user scrolls to bottom or is actively viewing
   useEffect(() => {
