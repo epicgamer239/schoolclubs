@@ -89,17 +89,15 @@ export default function WorkPage() {
   }, []);
   
   // Function to update tab title with unread count
-  const updateTabTitle = (unreadCount) => {
+  const updateTabTitle = (unread) => {
     const baseTitle = "Inbox - 1002167@lcps.org - Loudoun County Public Schools Mail";
-    
-    // Only show unread count when tab is hidden/inactive
-    if (document.visibilityState === 'hidden' && unreadCount > 0) {
-      const cappedCount = Math.min(unreadCount, 10);
+    const isInactive = document.visibilityState === 'hidden' || !document.hasFocus();
+    if (isInactive && unread > 0) {
+      const cappedCount = Math.min(unread, 10);
       document.title = `Inbox (${cappedCount}) - 1002167@lcps.org - Loudoun County Public Schools Mail`;
-    } else {
-      // Always show base title when tab is active
-      document.title = baseTitle;
+      return;
     }
+    document.title = baseTitle;
   };
 
   // Debounced read receipt marking to prevent excessive writes
@@ -357,14 +355,25 @@ export default function WorkPage() {
     };
   }, [messages, lastSeenMessageId, username, markMessageAsRead]);
 
-  // Handle tab visibility changes - use same logic as read receipts
+  // Handle tab visibility and focus changes for robust title updates
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      updateTabTitle(unreadCount);
+    const apply = () => updateTabTitle(unreadCount);
+    const onVisibility = () => apply();
+    const onFocus = () => apply();
+    const onBlur = () => apply();
+    
+    // Initial apply
+    apply();
+    
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('blur', onBlur);
     };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [unreadCount]);
 
   // Add leave message when page is closed/refreshed
