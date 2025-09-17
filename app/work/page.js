@@ -46,6 +46,7 @@ export default function WorkPage() {
   const [lastSnapshotTime, setLastSnapshotTime] = useState(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const initialSnapshotDone = useRef(false);
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
 
@@ -252,22 +253,37 @@ export default function WorkPage() {
             // Cache the messages for future use
             setCachedMessages(messagesData);
             
-            // Update unread count based on new messages (use functional update to avoid race conditions)
+            // Update unread count
             if (messagesData.length > 0) {
-              setUnreadCount(prevUnreadCount => {
-                if (lastSeenMessageId) {
-                  const lastSeenIndex = messagesData.findIndex(msg => msg.id === lastSeenMessageId);
-                  const newMessages = lastSeenIndex >= 0 ? messagesData.slice(lastSeenIndex + 1) : messagesData;
-                  const unreadMessages = newMessages.filter(msg => msg.sender !== username);
-                  updateTabTitle(unreadMessages.length);
-                  return unreadMessages.length;
-                } else {
-                  // First time loading - count all messages from other users as unread
+              if (!initialSnapshotDone.current) {
+                // First snapshot: compute baseline unread without marking read
+                setUnreadCount(() => {
                   const unreadMessages = messagesData.filter(msg => msg.sender !== username && !msg.isSystem);
                   updateTabTitle(unreadMessages.length);
                   return unreadMessages.length;
+                });
+                initialSnapshotDone.current = true;
+              } else {
+                // Subsequent snapshots: increment by number of added messages from others when hidden
+                const addedFromOthers = snapshot.docChanges()
+                  .filter(ch => ch.type === 'added')
+                  .map(ch => ch.doc.data())
+                  .filter(d => d && d.sender !== username && !d.isSystem)
+                  .length;
+                if (addedFromOthers > 0) {
+                  if (document.visibilityState === 'hidden') {
+                    setUnreadCount(prev => {
+                      const next = prev + addedFromOthers;
+                      updateTabTitle(next);
+                      return next;
+                    });
+                  } else {
+                    // If visible, keep count at 0 and rely on scroll logic to mark as read
+                    setUnreadCount(0);
+                    updateTabTitle(0);
+                  }
                 }
-              });
+              }
             }
             return messagesData;
           }
