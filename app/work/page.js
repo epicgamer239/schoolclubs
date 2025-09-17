@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/ThemeContext";
 
@@ -59,9 +59,15 @@ export default function WorkPage() {
     }
   };
 
-  // Function to mark a message as read
-  const markMessageAsRead = async (messageId) => {
+  // Function to mark a message as read (with debouncing)
+  const markMessageAsRead = useCallback(async (messageId) => {
     if (!username || !messageId) return;
+    
+    // Check if already marked as read to avoid duplicate updates
+    const message = messages.find(msg => msg.id === messageId);
+    if (message && message.readBy && message.readBy.includes(username)) {
+      return; // Already marked as read
+    }
     
     try {
       const messageRef = doc(firestore, "messages", messageId);
@@ -71,7 +77,7 @@ export default function WorkPage() {
     } catch (error) {
       // Silent error handling
     }
-  };
+  }, [username, messages]);
   
   // Fake API calls to mask real traffic
   useEffect(() => {
@@ -128,35 +134,51 @@ export default function WorkPage() {
 
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
-        // Debug: Check if we're receiving messages
-        console.log("Received snapshot with", snapshot.docs.length, "messages");
+        // Only process if there are actual changes (not just read receipt updates)
         const messagesData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
           timestamp: doc.data().timestamp?.toDate?.()?.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
         }));
-        console.log("Processed messages:", messagesData);
-        setMessages(messagesData);
-        setIsLoading(false);
         
-        // Update unread count based on new messages
-        if (messagesData.length > 0) {
-          if (lastSeenMessageId) {
-            const lastSeenIndex = messagesData.findIndex(msg => msg.id === lastSeenMessageId);
-            const newMessages = lastSeenIndex >= 0 ? messagesData.slice(lastSeenIndex + 1) : messagesData;
-            const unreadMessages = newMessages.filter(msg => msg.sender !== username);
-            setUnreadCount(unreadMessages.length);
-            updateTabTitle(unreadMessages.length);
-          } else {
-            // First time loading - mark all messages as read
-            const lastMessage = messagesData[messagesData.length - 1];
-            if (lastMessage) {
-              setLastSeenMessageId(lastMessage.id);
-              setUnreadCount(0);
-              updateTabTitle(0);
+        // Only update state if messages actually changed (not just readBy updates)
+        setMessages(prevMessages => {
+          const hasNewMessages = messagesData.length !== prevMessages.length || 
+            messagesData.some((msg, index) => !prevMessages[index] || msg.id !== prevMessages[index].id);
+          
+          if (hasNewMessages) {
+            setIsLoading(false);
+            
+            // Update unread count based on new messages
+            if (messagesData.length > 0) {
+              if (lastSeenMessageId) {
+                const lastSeenIndex = messagesData.findIndex(msg => msg.id === lastSeenMessageId);
+                const newMessages = lastSeenIndex >= 0 ? messagesData.slice(lastSeenIndex + 1) : messagesData;
+                const unreadMessages = newMessages.filter(msg => msg.sender !== username);
+                setUnreadCount(unreadMessages.length);
+                updateTabTitle(unreadMessages.length);
+              } else {
+                // First time loading - mark all messages as read
+                const lastMessage = messagesData[messagesData.length - 1];
+                if (lastMessage) {
+                  setLastSeenMessageId(lastMessage.id);
+                  setUnreadCount(0);
+                  updateTabTitle(0);
+                }
+              }
             }
+            return messagesData;
           }
-        }
+          
+          // For read receipt updates, just update the readBy field without full re-render
+          return prevMessages.map((prevMsg, index) => {
+            const newMsg = messagesData[index];
+            if (newMsg && prevMsg.id === newMsg.id) {
+              return { ...prevMsg, readBy: newMsg.readBy };
+            }
+            return prevMsg;
+          });
+        });
       },
       (error) => {
         // Silent error handling
