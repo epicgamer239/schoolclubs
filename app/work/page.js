@@ -264,21 +264,23 @@ export default function WorkPage() {
                 });
                 initialSnapshotDone.current = true;
               } else {
-                // Subsequent snapshots: increment by number of added messages from others when hidden
+                // Subsequent snapshots: increment by number of added messages from others when tab is not active
                 const addedFromOthers = snapshot.docChanges()
                   .filter(ch => ch.type === 'added')
                   .map(ch => ch.doc.data())
                   .filter(d => d && d.sender !== username && !d.isSystem)
                   .length;
+                
                 if (addedFromOthers > 0) {
-                  if (document.visibilityState === 'hidden') {
+                  if (!isTabActive) {
+                    // Tab is not active - increment unread count
                     setUnreadCount(prev => {
                       const next = prev + addedFromOthers;
                       updateTabTitle(next);
                       return next;
                     });
                   } else {
-                    // If visible, keep count at 0 and rely on scroll logic to mark as read
+                    // Tab is active - keep count at 0 and rely on scroll logic to mark as read
                     setUnreadCount(0);
                     updateTabTitle(0);
                   }
@@ -378,6 +380,9 @@ export default function WorkPage() {
     };
   }, [messages, lastSeenMessageId, username, markMessageAsRead]);
 
+  // Track if tab is currently active/focused
+  const [isTabActive, setIsTabActive] = useState(true);
+
   // Handle tab visibility changes and enforce title while hidden
   useEffect(() => {
     let titleEnforcer = null;
@@ -388,7 +393,7 @@ export default function WorkPage() {
 
     const startEnforcer = () => {
       if (!titleEnforcer) {
-        titleEnforcer = setInterval(applyTitle, 2000);
+        titleEnforcer = setInterval(applyTitle, 1000); // More frequent updates
       }
     };
 
@@ -400,25 +405,48 @@ export default function WorkPage() {
     };
 
     const handleVisibilityChange = () => {
+      const isHidden = document.visibilityState === 'hidden';
+      const isFocused = document.hasFocus();
+      const isActive = !isHidden && isFocused;
+      
+      setIsTabActive(isActive);
       applyTitle();
-      if (document.visibilityState === 'hidden') {
+      
+      if (!isActive) {
         startEnforcer();
       } else {
         stopEnforcer();
       }
     };
 
-    // Initial apply and init enforcer based on current state
+    const handleFocus = () => {
+      setIsTabActive(true);
+      stopEnforcer();
+      applyTitle();
+    };
+
+    const handleBlur = () => {
+      setIsTabActive(false);
+      startEnforcer();
+      applyTitle();
+    };
+
+    // Initial state detection
     handleVisibilityChange();
 
+    // Multiple event listeners for better detection
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleVisibilityChange);
-    window.addEventListener('blur', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('pageshow', handleFocus);
+    window.addEventListener('pagehide', handleBlur);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleVisibilityChange);
-      window.removeEventListener('blur', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('pageshow', handleFocus);
+      window.removeEventListener('pagehide', handleBlur);
       stopEnforcer();
     };
   }, [unreadCount]);
