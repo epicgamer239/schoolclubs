@@ -41,12 +41,8 @@ export default function WorkPage() {
   const [lastMessageTime, setLastMessageTime] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastSeenMessageId, setLastSeenMessageId] = useState(null);
-  const [lastVisibleMessage, setLastVisibleMessage] = useState(null);
-  const [hasMoreMessages, setHasMoreMessages] = useState(false);
-  const [lastSnapshotTime, setLastSnapshotTime] = useState(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
-  const initialSnapshotDone = useRef(false);
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
 
@@ -253,38 +249,19 @@ export default function WorkPage() {
             // Cache the messages for future use
             setCachedMessages(messagesData);
             
-            // Update unread count
+            // Update unread count - simple logic like before read receipts
             if (messagesData.length > 0) {
-              if (!initialSnapshotDone.current) {
-                // First snapshot: compute baseline unread without marking read
-                setUnreadCount(() => {
-                  const unreadMessages = messagesData.filter(msg => msg.sender !== username && !msg.isSystem);
-                  updateTabTitle(unreadMessages.length);
-                  return unreadMessages.length;
-                });
-                initialSnapshotDone.current = true;
+              if (lastSeenMessageId) {
+                const lastSeenIndex = messagesData.findIndex(msg => msg.id === lastSeenMessageId);
+                const newMessages = lastSeenIndex >= 0 ? messagesData.slice(lastSeenIndex + 1) : messagesData;
+                const unreadMessages = newMessages.filter(msg => msg.sender !== username && !msg.isSystem);
+                setUnreadCount(unreadMessages.length);
+                updateTabTitle(unreadMessages.length);
               } else {
-                // Subsequent snapshots: increment by number of added messages from others when tab is not active
-                const addedFromOthers = snapshot.docChanges()
-                  .filter(ch => ch.type === 'added')
-                  .map(ch => ch.doc.data())
-                  .filter(d => d && d.sender !== username && !d.isSystem)
-                  .length;
-                
-                if (addedFromOthers > 0) {
-                  if (!isTabActive) {
-                    // Tab is not active - increment unread count
-                    setUnreadCount(prev => {
-                      const next = prev + addedFromOthers;
-                      updateTabTitle(next);
-                      return next;
-                    });
-                  } else {
-                    // Tab is active - keep count at 0 and rely on scroll logic to mark as read
-                    setUnreadCount(0);
-                    updateTabTitle(0);
-                  }
-                }
+                // First time loading - count all messages from other users as unread
+                const unreadMessages = messagesData.filter(msg => msg.sender !== username && !msg.isSystem);
+                setUnreadCount(unreadMessages.length);
+                updateTabTitle(unreadMessages.length);
               }
             }
             return messagesData;
@@ -380,75 +357,14 @@ export default function WorkPage() {
     };
   }, [messages, lastSeenMessageId, username, markMessageAsRead]);
 
-  // Track if tab is currently active/focused
-  const [isTabActive, setIsTabActive] = useState(true);
-
-  // Handle tab visibility changes and enforce title while hidden
+  // Handle tab visibility changes - use same logic as read receipts
   useEffect(() => {
-    let titleEnforcer = null;
-
-    const applyTitle = () => {
+    const handleVisibilityChange = () => {
       updateTabTitle(unreadCount);
     };
 
-    const startEnforcer = () => {
-      if (!titleEnforcer) {
-        titleEnforcer = setInterval(applyTitle, 1000); // More frequent updates
-      }
-    };
-
-    const stopEnforcer = () => {
-      if (titleEnforcer) {
-        clearInterval(titleEnforcer);
-        titleEnforcer = null;
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      const isHidden = document.visibilityState === 'hidden';
-      const isFocused = document.hasFocus();
-      const isActive = !isHidden && isFocused;
-      
-      setIsTabActive(isActive);
-      applyTitle();
-      
-      if (!isActive) {
-        startEnforcer();
-      } else {
-        stopEnforcer();
-      }
-    };
-
-    const handleFocus = () => {
-      setIsTabActive(true);
-      stopEnforcer();
-      applyTitle();
-    };
-
-    const handleBlur = () => {
-      setIsTabActive(false);
-      startEnforcer();
-      applyTitle();
-    };
-
-    // Initial state detection
-    handleVisibilityChange();
-
-    // Multiple event listeners for better detection
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    window.addEventListener('pageshow', handleFocus);
-    window.addEventListener('pagehide', handleBlur);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-      window.removeEventListener('pageshow', handleFocus);
-      window.removeEventListener('pagehide', handleBlur);
-      stopEnforcer();
-    };
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [unreadCount]);
 
   // Add leave message when page is closed/refreshed
