@@ -196,7 +196,7 @@ export default function WorkPage() {
     }
   }, [messages]);
 
-  // Mark messages as read when user scrolls to bottom
+  // Mark messages as read when they come into view
   useEffect(() => {
     const handleScroll = () => {
       const messagesContainer = document.querySelector('.messages-container');
@@ -208,19 +208,46 @@ export default function WorkPage() {
             setLastSeenMessageId(lastMessage.id);
             setUnreadCount(0);
             updateTabTitle(0);
-            // Mark the last message as read
-            markMessageAsRead(lastMessage.id);
+            // Mark the last message as read (only if it's not from the current user)
+            if (lastMessage.sender !== username) {
+              markMessageAsRead(lastMessage.id);
+            }
           }
         }
       }
     };
 
+    // Use Intersection Observer for more reliable read detection
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const messageElement = entry.target;
+          const messageId = messageElement.getAttribute('data-message-id');
+          const messageSender = messageElement.getAttribute('data-message-sender');
+          
+          if (messageId && messageSender !== username) {
+            markMessageAsRead(messageId);
+          }
+        }
+      });
+    }, { threshold: 0.5 });
+
+    // Observe all message elements
+    const messageElements = document.querySelectorAll('[data-message-id]');
+    messageElements.forEach(el => observer.observe(el));
+
     const messagesContainer = document.querySelector('.messages-container');
     if (messagesContainer) {
       messagesContainer.addEventListener('scroll', handleScroll);
-      return () => messagesContainer.removeEventListener('scroll', handleScroll);
+      handleScroll();
+      return () => {
+        messagesContainer.removeEventListener('scroll', handleScroll);
+        observer.disconnect();
+      };
     }
-  }, [messages, lastSeenMessageId, username]);
+    
+    return () => observer.disconnect();
+  }, [messages, lastSeenMessageId, username, markMessageAsRead]);
 
   // Handle tab visibility changes
   useEffect(() => {
@@ -477,6 +504,8 @@ export default function WorkPage() {
                 <div
                   key={message.id}
                   className={`flex ${message.sender === username ? "justify-end" : "justify-start"}`}
+                  data-message-id={message.id}
+                  data-message-sender={message.sender}
                 >
                   <div
                     className={`max-w-xs px-4 py-2 rounded-lg ${
@@ -512,12 +541,14 @@ export default function WorkPage() {
             )}
             <div ref={messagesEndRef} />
             
-            {/* Read Receipt for Last Message */}
-            {messages.length > 0 && messages[messages.length - 1] && !messages[messages.length - 1].isSystem && (
-              <div className="flex justify-center mt-2">
+            {/* Read Receipt for Your Last Message */}
+            {messages.length > 0 && messages[messages.length - 1] && 
+             !messages[messages.length - 1].isSystem && 
+             messages[messages.length - 1].sender === username && (
+              <div className="flex justify-start mt-1 ml-2">
                 <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                   {messages[messages.length - 1].readBy && messages[messages.length - 1].readBy.length > 0 ? (
-                    `Read by ${messages[messages.length - 1].readBy.join(', ')}`
+                    `Read by ${messages[messages.length - 1].readBy.filter(name => name !== username).join(', ')}`
                   ) : (
                     'Not read yet'
                   )}
