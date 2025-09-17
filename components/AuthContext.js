@@ -48,7 +48,6 @@ export function AuthProvider({ children }) {
       CachePerformance.endTiming(timing);
       return null;
     } catch (err) {
-      console.error("Error fetching user data", err);
       CachePerformance.endTiming(timing);
       return null;
     }
@@ -98,7 +97,6 @@ export function AuthProvider({ children }) {
           UserCache.clearUserData();
         }
       } catch (error) {
-        console.error("Auth state change error:", error);
         // Fallback to cached data if available
         const cachedData = UserCache.getUserData();
         if (cachedData) {

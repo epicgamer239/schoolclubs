@@ -31,7 +31,6 @@ function VerifyEmailContent() {
       // Start 30-second cooldown
       setResendCooldown(30);
     } catch (error) {
-      console.error("Error resending verification email:", error);
       setMessage("Failed to resend verification email. Please try again.");
     } finally {
       setIsResending(false);
@@ -42,7 +41,6 @@ function VerifyEmailContent() {
     const handleEmailVerification = async () => {
       // Prevent multiple verification attempts
       if (hasAttemptedVerification.current) {
-        console.log('Verification already attempted, skipping...');
         return;
       }
 
@@ -51,8 +49,7 @@ function VerifyEmailContent() {
         const mode = searchParams.get('mode');
         const email = searchParams.get('email');
 
-        console.log('Verification params:', { oobCode, mode, email, searchParams: searchParams.toString() });
-        console.log('Full URL:', window.location.href);
+        // diagnostics removed
 
         // Check if user is already verified
         if (auth.currentUser && auth.currentUser.emailVerified) {
@@ -77,14 +74,11 @@ function VerifyEmailContent() {
 
         // Decode the oobCode if it's URL encoded
         const decodedOobCode = oobCode ? decodeURIComponent(oobCode) : oobCode;
-        console.log('Decoded oobCode:', decodedOobCode);
 
         // Check if the action code is valid
-        console.log('Checking action code:', decodedOobCode);
         await checkActionCode(auth, decodedOobCode);
         
         // Apply the email verification
-        console.log('Applying action code:', decodedOobCode);
         await applyActionCode(auth, decodedOobCode);
         
         setStatus("success");
@@ -94,13 +88,6 @@ function VerifyEmailContent() {
         localStorage.setItem('emailVerificationStatus', 'verified');
 
       } catch (error) {
-        console.error("Email verification error:", error);
-        console.error("Error details:", {
-          code: error.code,
-          message: error.message,
-          oobCode: searchParams.get('oobCode'),
-          mode: searchParams.get('mode')
-        });
         
         if (error.code === 'auth/expired-action-code') {
           setStatus("expired");

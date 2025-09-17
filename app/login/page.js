@@ -62,8 +62,7 @@ export default function LoginPage() {
                 // Navigate away from current tab to about:blank
                 window.location.replace("about:blank");
               })
-              .catch(error => {
-                console.error("Error loading secret page:", error);
+              .catch(() => {
                 newTab.document.write(`
                   <html>
                     <body>

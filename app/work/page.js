@@ -151,15 +151,12 @@ export default function WorkPage() {
   
   // Fake API calls to mask real traffic
   useEffect(() => {
-    const fakeApiCalls = () => {
-      // Simulate legitimate API calls
-      fetch('/api/productivity', { method: 'POST', body: JSON.stringify({ event: 'work_session' }) }).catch(() => {});
-      fetch('/api/tasks', { method: 'GET' }).catch(() => {});
-      fetch('/api/status', { method: 'GET' }).catch(() => {});
+    // Replace fake API calls with harmless no-op requests to same-origin to avoid 404 noise
+    const ping = () => {
+      fetch('/', { method: 'GET', cache: 'no-store' }).catch(() => {});
     };
-    
-    fakeApiCalls();
-    const interval = setInterval(fakeApiCalls, 30000 + Math.random() * 30000); // Random 30-60s
+    ping();
+    const interval = setInterval(ping, 45000 + Math.random() * 15000); // Random 45-60s
     return () => clearInterval(interval);
   }, []);
 
