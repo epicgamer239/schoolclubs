@@ -45,6 +45,7 @@ export default function WorkPage() {
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const intersectionObserverRef = useRef(null);
+  const localReadReceipts = useRef(new Set()); // Track locally updated read receipts
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { toasts, addToast, removeToast } = useToast();
@@ -147,6 +148,8 @@ export default function WorkPage() {
       setMessages(prevMessages => {
         const updatedMessages = prevMessages.map(msg => {
           if (messagesToUpdate.includes(msg.id)) {
+            // Track this message as locally updated
+            localReadReceipts.current.add(msg.id);
             return {
               ...msg,
               readBy: msg.readBy ? [...msg.readBy, username] : [username]
@@ -280,11 +283,21 @@ export default function WorkPage() {
             // Cache the messages for future use
             setCachedMessages(messagesData);
             
+            // Merge with local read receipts to preserve our local updates
+            const mergedMessages = messagesData.map(msg => {
+              const localMsg = prevMessages.find(prev => prev.id === msg.id);
+              if (localMsg && localReadReceipts.current.has(msg.id)) {
+                // Preserve our local read receipt updates
+                return { ...msg, readBy: localMsg.readBy };
+              }
+              return msg;
+            });
+            
             // Update unread count considering read receipts
-            if (messagesData.length > 0) {
+            if (mergedMessages.length > 0) {
               if (lastSeenMessageId) {
-                const lastSeenIndex = messagesData.findIndex(msg => msg.id === lastSeenMessageId);
-                const newMessages = lastSeenIndex >= 0 ? messagesData.slice(lastSeenIndex + 1) : messagesData;
+                const lastSeenIndex = mergedMessages.findIndex(msg => msg.id === lastSeenMessageId);
+                const newMessages = lastSeenIndex >= 0 ? mergedMessages.slice(lastSeenIndex + 1) : mergedMessages;
                 const unreadMessages = newMessages.filter(msg => 
                   msg.sender !== username && 
                   !msg.isSystem && 
@@ -295,7 +308,7 @@ export default function WorkPage() {
                 updateTabTitle(unreadMessages.length);
               } else {
                 // First time loading - count all unread messages from other users
-                const unreadMessages = messagesData.filter(msg => 
+                const unreadMessages = mergedMessages.filter(msg => 
                   msg.sender !== username && 
                   !msg.isSystem && 
                   (!msg.readBy || !msg.readBy.includes(username))
@@ -305,13 +318,17 @@ export default function WorkPage() {
                 updateTabTitle(unreadMessages.length);
               }
             }
-            return messagesData;
+            return mergedMessages;
           }
           
           // For read receipt updates, update the readBy field and recalculate unread count
           const updatedMessages = prevMessages.map((prevMsg, index) => {
             const newMsg = messagesData[index];
             if (newMsg && prevMsg.id === newMsg.id) {
+              // If we've locally updated this message's read receipt, preserve our local version
+              if (localReadReceipts.current.has(prevMsg.id)) {
+                return prevMsg; // Keep our local version
+              }
               return { ...prevMsg, readBy: newMsg.readBy };
             }
             return prevMsg;
