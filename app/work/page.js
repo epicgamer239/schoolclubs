@@ -94,13 +94,12 @@ export default function WorkPage() {
   // Function to update tab title with unread count
   const updateTabTitle = (unread) => {
     const baseTitle = "Inbox - 1002167@lcps.org - Loudoun County Public Schools Mail";
-    const isInactive = document.visibilityState === 'hidden' || !document.hasFocus();
-    if (isInactive && unread > 0) {
+    if (unread > 0) {
       const cappedCount = Math.min(unread, 10);
       document.title = `Inbox (${cappedCount}) - 1002167@lcps.org - Loudoun County Public Schools Mail`;
-      return;
+    } else {
+      document.title = baseTitle;
     }
-    document.title = baseTitle;
   };
 
   // Debounced read receipt marking to prevent excessive writes
@@ -162,6 +161,7 @@ export default function WorkPage() {
           !msg.isSystem && 
           (!msg.readBy || !msg.readBy.includes(username))
         );
+        console.log(`Unread count after read receipts: ${unreadMessages.length}`);
         setUnreadCount(unreadMessages.length);
         updateTabTitle(unreadMessages.length);
         
@@ -290,6 +290,7 @@ export default function WorkPage() {
                   !msg.isSystem && 
                   (!msg.readBy || !msg.readBy.includes(username))
                 );
+                console.log(`Unread count (new messages): ${unreadMessages.length}`);
                 setUnreadCount(unreadMessages.length);
                 updateTabTitle(unreadMessages.length);
               } else {
@@ -299,6 +300,7 @@ export default function WorkPage() {
                   !msg.isSystem && 
                   (!msg.readBy || !msg.readBy.includes(username))
                 );
+                console.log(`Unread count (first load): ${unreadMessages.length}`);
                 setUnreadCount(unreadMessages.length);
                 updateTabTitle(unreadMessages.length);
               }
