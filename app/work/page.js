@@ -209,12 +209,30 @@ export default function WorkPage() {
     }
   };
 
+  // Track previous message count to detect new messages vs read receipt updates
+  const prevMessageCountRef = useRef(0);
+  
   useEffect(() => {
-    // Only auto-scroll when the tab is active to avoid clearing unread on hidden tabs
+    // Only auto-scroll when there are actually new messages, not just read receipt updates
     const isActive = document.visibilityState === 'visible' && document.hasFocus();
-    if (isActive) {
-      scrollToBottom();
+    const hasNewMessages = messages.length > prevMessageCountRef.current;
+    
+    if (isActive && hasNewMessages) {
+      // Check if user is already at the bottom before auto-scrolling
+      const messagesContainer = document.querySelector('.messages-container');
+      if (messagesContainer) {
+        const isAtBottom = messagesContainer.scrollTop + messagesContainer.clientHeight >= messagesContainer.scrollHeight - 10;
+        if (isAtBottom) {
+          scrollToBottom();
+        }
+      } else {
+        // Fallback if container not found
+        scrollToBottom();
+      }
     }
+    
+    // Update the ref for next comparison
+    prevMessageCountRef.current = messages.length;
   }, [messages]);
 
   useEffect(() => {
@@ -364,12 +382,6 @@ export default function WorkPage() {
     };
   }, [isJoined, lastSeenMessageId, username, getCachedMessages, setCachedMessages]);
 
-  // Mark messages as read when user scrolls to bottom or is actively viewing
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages]);
 
   // Mark messages as read when they come into view
   useEffect(() => {
