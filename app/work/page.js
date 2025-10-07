@@ -143,6 +143,31 @@ export default function WorkPage() {
         }
       }
       
+      // Manually update unread count after read receipts are sent
+      // This ensures immediate UI update without waiting for Firestore listener
+      setMessages(prevMessages => {
+        const updatedMessages = prevMessages.map(msg => {
+          if (messagesToUpdate.includes(msg.id)) {
+            return {
+              ...msg,
+              readBy: msg.readBy ? [...msg.readBy, username] : [username]
+            };
+          }
+          return msg;
+        });
+        
+        // Recalculate unread count
+        const unreadMessages = updatedMessages.filter(msg => 
+          msg.sender !== username && 
+          !msg.isSystem && 
+          (!msg.readBy || !msg.readBy.includes(username))
+        );
+        setUnreadCount(unreadMessages.length);
+        updateTabTitle(unreadMessages.length);
+        
+        return updatedMessages;
+      });
+      
       // Clear timeout reference after completion
       readReceiptTimeout.current = null;
     }, 2000); // 2 second debounce
