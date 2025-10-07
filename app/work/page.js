@@ -255,17 +255,25 @@ export default function WorkPage() {
             // Cache the messages for future use
             setCachedMessages(messagesData);
             
-            // Update unread count - simple logic like before read receipts
+            // Update unread count considering read receipts
             if (messagesData.length > 0) {
               if (lastSeenMessageId) {
                 const lastSeenIndex = messagesData.findIndex(msg => msg.id === lastSeenMessageId);
                 const newMessages = lastSeenIndex >= 0 ? messagesData.slice(lastSeenIndex + 1) : messagesData;
-                const unreadMessages = newMessages.filter(msg => msg.sender !== username && !msg.isSystem);
+                const unreadMessages = newMessages.filter(msg => 
+                  msg.sender !== username && 
+                  !msg.isSystem && 
+                  (!msg.readBy || !msg.readBy.includes(username))
+                );
                 setUnreadCount(unreadMessages.length);
                 updateTabTitle(unreadMessages.length);
               } else {
-                // First time loading - count all messages from other users as unread
-                const unreadMessages = messagesData.filter(msg => msg.sender !== username && !msg.isSystem);
+                // First time loading - count all unread messages from other users
+                const unreadMessages = messagesData.filter(msg => 
+                  msg.sender !== username && 
+                  !msg.isSystem && 
+                  (!msg.readBy || !msg.readBy.includes(username))
+                );
                 setUnreadCount(unreadMessages.length);
                 updateTabTitle(unreadMessages.length);
               }
@@ -273,14 +281,25 @@ export default function WorkPage() {
             return messagesData;
           }
           
-          // For read receipt updates, just update the readBy field without full re-render
-          return prevMessages.map((prevMsg, index) => {
+          // For read receipt updates, update the readBy field and recalculate unread count
+          const updatedMessages = prevMessages.map((prevMsg, index) => {
             const newMsg = messagesData[index];
             if (newMsg && prevMsg.id === newMsg.id) {
               return { ...prevMsg, readBy: newMsg.readBy };
             }
             return prevMsg;
           });
+          
+          // Recalculate unread count after read receipt updates
+          const unreadMessages = updatedMessages.filter(msg => 
+            msg.sender !== username && 
+            !msg.isSystem && 
+            (!msg.readBy || !msg.readBy.includes(username))
+          );
+          setUnreadCount(unreadMessages.length);
+          updateTabTitle(unreadMessages.length);
+          
+          return updatedMessages;
         });
       },
       (error) => {
@@ -526,7 +545,6 @@ export default function WorkPage() {
             readBy: []
           });
           // Silent note submission
-          addToast("Message sent successfully!", "success");
         } catch (error) {
           console.error("Failed to send message:", error);
           
