@@ -218,20 +218,25 @@ export default function WorkPage() {
     const hasNewMessages = messages.length > prevMessageCountRef.current;
     
     if (isActive && hasNewMessages) {
-      // Check if user is near the bottom (within 100px) or if they're actively engaged
+      // Check if user is near the bottom (within 200px) or if they're actively engaged
       const messagesContainer = document.querySelector('.messages-container');
       if (messagesContainer) {
-        const isNearBottom = messagesContainer.scrollTop + messagesContainer.clientHeight >= messagesContainer.scrollHeight - 100;
+        const isNearBottom = messagesContainer.scrollTop + messagesContainer.clientHeight >= messagesContainer.scrollHeight - 200;
         
         // Auto-scroll if user is near bottom OR if they're actively typing (textarea focused)
         const isTyping = document.activeElement === textareaRef.current;
         
         if (isNearBottom || isTyping) {
-          scrollToBottom();
+          // Use setTimeout to ensure DOM has updated before scrolling
+          setTimeout(() => {
+            scrollToBottom();
+          }, 50);
         }
       } else {
-        // Fallback if container not found
-        scrollToBottom();
+        // Fallback if container not found - always scroll for new messages
+        setTimeout(() => {
+          scrollToBottom();
+        }, 50);
       }
     }
     
