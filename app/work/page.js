@@ -230,6 +230,20 @@ export default function WorkPage() {
           // Use setTimeout to ensure DOM has updated before scrolling
           setTimeout(() => {
             scrollToBottom();
+            
+            // If user is at bottom, automatically mark all visible messages as read
+            if (isNearBottom) {
+              const unreadMessages = messages.filter(msg => 
+                msg.sender !== username && 
+                !msg.isSystem && 
+                (!msg.readBy || !msg.readBy.includes(username))
+              );
+              
+              // Mark all unread messages as read
+              unreadMessages.forEach(msg => {
+                markMessageAsRead(msg.id);
+              });
+            }
           }, 50);
         }
       } else {
@@ -405,10 +419,18 @@ export default function WorkPage() {
             setLastSeenMessageId(lastMessage.id);
             setUnreadCount(0);
             updateTabTitle(0);
-            // Mark the last message as read (only if it's not from the current user)
-            if (lastMessage.sender !== username) {
-              markMessageAsRead(lastMessage.id);
-            }
+            
+            // Mark ALL unread messages as read when user is at bottom
+            const unreadMessages = messages.filter(msg => 
+              msg.sender !== username && 
+              !msg.isSystem && 
+              (!msg.readBy || !msg.readBy.includes(username))
+            );
+            
+            // Mark all unread messages as read
+            unreadMessages.forEach(msg => {
+              markMessageAsRead(msg.id);
+            });
           }
         }
       }
