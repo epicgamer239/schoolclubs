@@ -3,11 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Rate limiting collection (temporary documents that auto-expire)
-    match /rateLimits/{userId} {
-      allow read, write: if true;
-    }
-    
     // Messages collection - Contains chat messages (obfuscated name)
     match /messages/{messageId} {
       // Allow read: Anyone can read messages (for public chat)
@@ -16,9 +11,8 @@ service cloud.firestore {
       // Allow create: Anyone can create messages (simplified rules)
       allow create: if true;
       
-      // Allow update: Only allow updating readBy field for read receipts
-      allow update: if request.resource.data.keys().hasAll(['readBy']) && 
-                      request.resource.data.readBy is list &&
+      // Allow update: Allow updating readBy field for read receipts
+      allow update: if request.resource.data.readBy is list &&
                       request.resource.data.readBy.size() <= 50;
       
       // Allow delete: No deletes allowed (messages are permanent)

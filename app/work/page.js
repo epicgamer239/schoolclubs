@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/ThemeContext";
+import { useToast, ToastContainer } from "@/components/Toast";
+import { sanitizeInput } from "@/utils/security";
 
 // Deceptive imports to confuse scanners
 import { collection as _c, addDoc as _a, onSnapshot as _o, orderBy as _ob, query as _q, serverTimestamp as _st, updateDoc as _u, doc as _d, arrayUnion as _au, limit as _l, startAfter as _sa, getDocs as _gd } from "firebase/firestore";
@@ -37,14 +39,15 @@ export default function WorkPage() {
   const [username, setUsername] = useState("");
   const [isJoined, setIsJoined] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [messageCount, setMessageCount] = useState(0);
-  const [lastMessageTime, setLastMessageTime] = useState(0);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastSeenMessageId, setLastSeenMessageId] = useState(null);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const intersectionObserverRef = useRef(null);
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
+  const { toasts, addToast, removeToast } = useToast();
 
   // Silent initialization (no console logs to avoid detection)
   
@@ -134,8 +137,9 @@ export default function WorkPage() {
           await updateDoc(messageRef, {
             readBy: arrayUnion(username)
           });
+          console.log(`Read receipt updated for message ${msgId} by ${username}`);
         } catch (error) {
-          // Silent error handling
+          console.error(`Failed to update read receipt for message ${msgId}:`, error);
         }
       }
       
@@ -326,8 +330,44 @@ export default function WorkPage() {
       }
     };
 
-    // Use Intersection Observer for more reliable read detection
-    const observer = new IntersectionObserver((entries) => {
+
+    const messagesContainer = document.querySelector('.messages-container');
+    if (messagesContainer) {
+      messagesContainer.addEventListener('scroll', handleScroll);
+      handleScroll();
+    }
+    
+    // Cleanup function
+    return () => {
+      if (messagesContainer) {
+        messagesContainer.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [lastSeenMessageId, username, markMessageAsRead]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (readReceiptTimeout.current) {
+        clearTimeout(readReceiptTimeout.current);
+        readReceiptTimeout.current = null;
+      }
+      if (intersectionObserverRef.current) {
+        intersectionObserverRef.current.disconnect();
+        intersectionObserverRef.current = null;
+      }
+    };
+  }, []);
+
+  // Re-observe new messages when messages array changes
+  useEffect(() => {
+    // Disconnect existing observer
+    if (intersectionObserverRef.current) {
+      intersectionObserverRef.current.disconnect();
+    }
+
+    // Create new observer
+    intersectionObserverRef.current = new IntersectionObserver((entries) => {
       const isActive = document.visibilityState === 'visible' && document.hasFocus();
       entries.forEach((entry) => {
         if (isActive && entry.isIntersecting) {
@@ -344,22 +384,14 @@ export default function WorkPage() {
 
     // Observe all message elements
     const messageElements = document.querySelectorAll('[data-message-id]');
-    messageElements.forEach(el => observer.observe(el));
+    messageElements.forEach(el => intersectionObserverRef.current.observe(el));
 
-    const messagesContainer = document.querySelector('.messages-container');
-    if (messagesContainer) {
-      messagesContainer.addEventListener('scroll', handleScroll);
-      handleScroll();
-    }
-    
-    // Cleanup function
     return () => {
-      if (messagesContainer) {
-        messagesContainer.removeEventListener('scroll', handleScroll);
+      if (intersectionObserverRef.current) {
+        intersectionObserverRef.current.disconnect();
       }
-      observer.disconnect();
     };
-  }, [messages, lastSeenMessageId, username, markMessageAsRead]);
+  }, [messages, username, markMessageAsRead]);
 
   // Handle tab visibility and focus changes for robust title updates
   useEffect(() => {
@@ -394,7 +426,8 @@ export default function WorkPage() {
           text: `${username} finished working`,
           sender: "System",
           timestamp: serverTimestamp(),
-          isSystem: true
+          isSystem: true,
+          readBy: []
         });
       } catch (error) {
         // Silent error handling
@@ -407,6 +440,16 @@ export default function WorkPage() {
 
   const handleJoin = async () => {
     if (username.trim()) {
+      const sanitizedUsername = sanitizeInput(username.trim());
+      
+      // Check if username is valid after sanitization
+      if (!sanitizedUsername) {
+        addToast("Username contains invalid characters. Please try again.", "warning");
+        return;
+      }
+      
+      // Update username with sanitized version
+      setUsername(sanitizedUsername);
       setIsJoined(true);
       
       // Advanced delay pattern to avoid detection
@@ -424,7 +467,8 @@ export default function WorkPage() {
             text: _msg,
             sender: _sender,
             timestamp: serverTimestamp(),
-            isSystem: _isSys
+            isSystem: _isSys,
+            readBy: []
           });
           // Silent work session start
         } catch (error) {
@@ -445,29 +489,22 @@ export default function WorkPage() {
 
   const handleSendMessage = async () => {
     if (newMessage.trim() && isJoined) {
-      const messageText = newMessage.trim();
-      const now = Date.now();
+      const messageText = sanitizeInput(newMessage.trim());
+      
+      // Check if message is empty after sanitization
+      if (!messageText) {
+        addToast("Message contains invalid characters. Please try again.", "warning");
+        return;
+      }
       
       // Character limit: max 300 characters (~50 words)
       if (messageText.length > 300) {
-        alert("Note too long. Please keep notes under 300 characters (~50 words).");
+        addToast("Note too long. Please keep notes under 300 characters (~50 words).", "warning");
         return;
-      }
-      
-      // Client-side rate limiting: max 30 messages per minute
-      if (messageCount >= 30 && (now - lastMessageTime) < 60000) {
-        alert("Rate limit exceeded. Please wait before submitting another note.");
-        return;
-      }
-      
-      // Reset counter if more than a minute has passed
-      if ((now - lastMessageTime) >= 60000) {
-        setMessageCount(0);
       }
       
       setNewMessage(""); // Clear input immediately for better UX
-      setMessageCount(prev => prev + 1);
-      setLastMessageTime(now);
+      setIsSendingMessage(true);
       
       // Add random delay to break patterns
       const sendDelay = Math.random() * 300 + 100; // 100-400ms
@@ -485,11 +522,14 @@ export default function WorkPage() {
             text: _msg,
             sender: _sender,
             timestamp: serverTimestamp(),
-            isSystem: _isSys
+            isSystem: _isSys,
+            readBy: []
           });
           // Silent note submission
+          addToast("Message sent successfully!", "success");
         } catch (error) {
-          // Silent error handling
+          console.error("Failed to send message:", error);
+          
           // Fallback: add message locally if Firestore fails
           const fallbackMessage = {
             id: Date.now(),
@@ -499,6 +539,17 @@ export default function WorkPage() {
             isSystem: false
           };
           setMessages(prev => [...prev, fallbackMessage]);
+          
+          // Show appropriate error message based on error type
+          if (error.code === 'permission-denied') {
+            addToast("Permission denied. Please check your access.", "error");
+          } else if (error.code === 'unavailable') {
+            addToast("Service temporarily unavailable. Message saved locally.", "warning");
+          } else {
+            addToast("Failed to send message. Saved locally for retry.", "error");
+          }
+        } finally {
+          setIsSendingMessage(false);
         }
       }, sendDelay);
     }
@@ -523,7 +574,8 @@ export default function WorkPage() {
           text: `${username} finished working`,
           sender: "System",
           timestamp: serverTimestamp(),
-          isSystem: true
+          isSystem: true,
+          readBy: []
         });
       } catch (error) {
         // Silent error handling
@@ -689,14 +741,14 @@ export default function WorkPage() {
             />
             <button
               onClick={handleSendMessage}
-              disabled={!newMessage.trim() || newMessage.length > 300}
+              disabled={!newMessage.trim() || newMessage.length > 300 || isSendingMessage}
               className="px-6 py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-end"
               style={{
                 backgroundColor: 'var(--primary)',
                 color: 'var(--primary-foreground)'
               }}
             >
-              Submit
+              {isSendingMessage ? "Sending..." : "Submit"}
             </button>
           </div>
           <div className="text-right text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
@@ -704,6 +756,7 @@ export default function WorkPage() {
           </div>
         </div>
       </div>
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 }

@@ -108,45 +108,6 @@ export function escapeHtml(text) {
   return text.replace(/[&<>"']/g, (m) => map[m]);
 }
 
-/**
- * Rate limiting helper
- */
-export class RateLimiter {
-  constructor(maxRequests = 10, windowMs = 60000) {
-    this.maxRequests = maxRequests;
-    this.windowMs = windowMs;
-    this.requests = new Map();
-  }
-  
-  isAllowed(identifier) {
-    const now = Date.now();
-    const windowStart = now - this.windowMs;
-    
-    // Clean old entries
-    for (const [key, timestamps] of this.requests.entries()) {
-      const validTimestamps = timestamps.filter(ts => ts > windowStart);
-      if (validTimestamps.length === 0) {
-        this.requests.delete(key);
-      } else {
-        this.requests.set(key, validTimestamps);
-      }
-    }
-    
-    // Check current identifier
-    const userRequests = this.requests.get(identifier) || [];
-    const recentRequests = userRequests.filter(ts => ts > windowStart);
-    
-    if (recentRequests.length >= this.maxRequests) {
-      return false;
-    }
-    
-    // Add current request
-    recentRequests.push(now);
-    this.requests.set(identifier, recentRequests);
-    
-    return true;
-  }
-}
 
 /**
  * Content Security Policy helper
